@@ -16,14 +16,13 @@ local updateQiThread = nil
 local timers = {
     wait_1m30s_after_first_items = 90, 
     alur_wait_40s_hide_qi = 40,             
-    -- wait_1m_before_forbidden = 60, -- --- MODIFIED: Dihilangkan sesuai permintaan ---
     comprehend_duration = 120,         
     post_comprehend_qi_duration = 120, 
 
     user_script_wait1_before_items1 = 60, 
     user_script_wait2_after_items1 = 30,  
     user_script_wait3_before_items2 = 60, 
-    user_script_wait4_before_forbidden = 60, 
+    user_script_wait4_before_forbidden = 0.01, -- Ditiadakan di logika, tapi variabel bisa tetap ada
 
     update_qi_interval = 1,
     aptitude_mine_interval = 0.1, 
@@ -52,24 +51,42 @@ local function setupCoreGuiParenting()
 end
 setupCoreGuiParenting() 
 
--- // Desain UI (Struktur Asli Dipertahankan, dengan penambahan untuk timer dan minimize) //
-Frame.Size = UDim2.new(0, 280, 0, 420) 
+-- // Desain UI (Struktur Asli Dipertahankan, dengan penambahan) //
+-- --- MODIFIED: Frame diperbesar sedikit lagi untuk Nama UI baru di atas ---
+Frame.Size = UDim2.new(0, 280, 0, 450) 
 Frame.Position = UDim2.new(0.02, 0, 0.02, 0) 
-Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- Warna sedikit digelapkan untuk kontras
 Frame.Active = true 
 Frame.Draggable = true 
 Frame.BorderSizePixel = 1 
-Frame.BorderColor3 = Color3.fromRGB(80, 80, 80) 
+Frame.BorderColor3 = Color3.fromRGB(150, 0, 0) -- Border merah
+
+-- --- ADDED: Nama UI Label ---
+local UiTitleLabel = Instance.new("TextLabel")
+UiTitleLabel.Name = "UiTitleLabel"
+UiTitleLabel.Parent = Frame
+UiTitleLabel.Size = UDim2.new(1, -20, 0, 25)
+UiTitleLabel.Position = UDim2.new(0, 10, 0, 10) -- Paling atas
+UiTitleLabel.Font = Enum.Font.Code -- Font yang sedikit pixelated / tech
+UiTitleLabel.Text = "ZXHELL X ZEDLIST"
+UiTitleLabel.TextColor3 = Color3.fromRGB(255, 0, 0) -- Awalnya merah
+UiTitleLabel.TextScaled = true
+UiTitleLabel.BackgroundTransparency = 1
+UiTitleLabel.ZIndex = 2
+-- --- END ADDED ---
+
+-- Posisi elemen lain digeser ke bawah untuk memberi ruang pada title
+local yOffsetForTitle = 35 
 
 StartButton.Size = UDim2.new(1, -20, 0, 30) 
-StartButton.Position = UDim2.new(0, 10, 0, 10)
+StartButton.Position = UDim2.new(0, 10, 0, 10 + yOffsetForTitle)
 StartButton.Text = "Start Script"
 StartButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 StartButton.Font = Enum.Font.SourceSansBold 
 
 StatusLabel.Size = UDim2.new(1, -20, 0, 40) 
-StatusLabel.Position = UDim2.new(0, 10, 0, 50)
+StatusLabel.Position = UDim2.new(0, 10, 0, 50 + yOffsetForTitle)
 StatusLabel.Text = "Status: Idle"
 StatusLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -82,7 +99,7 @@ local TimerTitleLabel = Instance.new("TextLabel")
 TimerTitleLabel.Name = "TimerTitle"
 TimerTitleLabel.Parent = Frame
 TimerTitleLabel.Size = UDim2.new(1, -20, 0, 20)
-TimerTitleLabel.Position = UDim2.new(0, 10, 0, 100)
+TimerTitleLabel.Position = UDim2.new(0, 10, 0, 100 + yOffsetForTitle)
 TimerTitleLabel.Text = "Konfigurasi Timer Alur (detik):"
 TimerTitleLabel.BackgroundTransparency = 1
 TimerTitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
@@ -94,7 +111,7 @@ local function createTimerInput(name, yPos, labelText, timerKey)
     label.Name = name .. "Label"
     label.Parent = Frame
     label.Size = UDim2.new(0.45, -15, 0, 20)
-    label.Position = UDim2.new(0, 10, 0, yPos)
+    label.Position = UDim2.new(0, 10, 0, yPos + yOffsetForTitle)
     label.Text = labelText
     label.BackgroundTransparency = 1
     label.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -106,7 +123,7 @@ local function createTimerInput(name, yPos, labelText, timerKey)
     input.Name = name .. "Input"
     input.Parent = Frame
     input.Size = UDim2.new(0.55, -15, 0, 20)
-    input.Position = UDim2.new(0.45, 5, 0, yPos)
+    input.Position = UDim2.new(0.45, 5, 0, yPos + yOffsetForTitle)
     input.Text = tostring(timers[timerKey])
     input.PlaceholderText = "Detik"
     input.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -118,23 +135,21 @@ local function createTimerInput(name, yPos, labelText, timerKey)
     return input 
 end
 
-local currentY = 130
-timerElements.wait1m30sInput = createTimerInput("Wait1m30s", currentY, "Wait Pasca Item1:", "wait_1m30s_after_first_items")
-currentY = currentY + 30
-timerElements.wait40sInput = createTimerInput("Wait40s", currentY, "Wait Item2 (QI Hidden):", "alur_wait_40s_hide_qi")
-currentY = currentY + 30
--- Input untuk wait_1m_before_forbidden dihilangkan karena timer ditiadakan
--- currentY = currentY + 30 
-timerElements.comprehendInput = createTimerInput("Comprehend", currentY, "Durasi Comprehend:", "comprehend_duration")
-currentY = currentY + 30
-timerElements.postComprehendQiInput = createTimerInput("PostComprehendQi", currentY, "Durasi Post-Comp QI:", "post_comprehend_qi_duration")
-currentY = currentY + 40 
+local currentYConfig = 130 
+timerElements.wait1m30sInput = createTimerInput("Wait1m30s", currentYConfig, "Wait Pasca Item1:", "wait_1m30s_after_first_items")
+currentYConfig = currentYConfig + 30
+timerElements.wait40sInput = createTimerInput("Wait40s", currentYConfig, "Wait Item2 (QI Hidden):", "alur_wait_40s_hide_qi")
+currentYConfig = currentYConfig + 30
+timerElements.comprehendInput = createTimerInput("Comprehend", currentYConfig, "Durasi Comprehend:", "comprehend_duration")
+currentYConfig = currentYConfig + 30
+timerElements.postComprehendQiInput = createTimerInput("PostComprehendQi", currentYConfig, "Durasi Post-Comp QI:", "post_comprehend_qi_duration")
+currentYConfig = currentYConfig + 40 
 
 local ApplyTimersButton = Instance.new("TextButton")
 ApplyTimersButton.Name = "ApplyTimersButton"
 ApplyTimersButton.Parent = Frame
 ApplyTimersButton.Size = UDim2.new(1, -20, 0, 30)
-ApplyTimersButton.Position = UDim2.new(0, 10, 0, currentY) -- Posisi disesuaikan
+ApplyTimersButton.Position = UDim2.new(0, 10, 0, currentYConfig + yOffsetForTitle)
 ApplyTimersButton.Text = "Terapkan Semua Timer"
 ApplyTimersButton.BackgroundColor3 = Color3.fromRGB(0, 100, 150)
 ApplyTimersButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -145,22 +160,23 @@ local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Parent = Frame
 MinimizeButton.Size = UDim2.new(0, 20, 0, 20) 
-MinimizeButton.Position = UDim2.new(1, -25, 0, 5) 
+MinimizeButton.Position = UDim2.new(1, -25, 0, 5) -- Di atas, di dalam Frame utama
 MinimizeButton.Text = "-" 
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 MinimizeButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 MinimizeButton.Font = Enum.Font.SourceSansBold
-MinimizeButton.ZIndex = 2 
+MinimizeButton.ZIndex = 3 -- Di atas title jika ada overlap
 
 local isMinimized = false
 local originalFrameSizeY = Frame.Size.Y.Offset 
-local minimizedFrameSizeY = 95 
+-- Tinggi frame saat minimize akan cukup untuk Title, StartButton, StatusLabel, dan MinimizeButton
+local minimizedHeaderHeight = (10 + UiTitleLabel.Size.Y.Offset + 5 + StartButton.Size.Y.Offset + 5 + StatusLabel.Size.Y.Offset + 10) -- Perkiraan
+local minimizedFrameSizeY = minimizedHeaderHeight + 10 -- Sedikit padding
 
 local elementsToToggleVisibility = {
     TimerTitleLabel, 
     timerElements.Wait1m30sLabel, timerElements.wait1m30sInput,
     timerElements.Wait40sLabel, timerElements.wait40sInput,
-    -- timerElements.Wait1mLabel, timerElements.wait1mInput, -- Dihilangkan dari toggle karena inputnya ditiadakan
     timerElements.ComprehendLabel, timerElements.comprehendInput,
     timerElements.PostComprehendQiLabel, timerElements.postComprehendQiInput, 
     ApplyTimersButton
@@ -205,7 +221,7 @@ local function fireRemoteEnhanced(remoteName, pathType, ...)
     return success
 end
 
--- // Fungsi utama (Struktur Asli Dipertahankan, dengan penyesuaian logika & pemanggilan fireRemoteEnhanced dari skrip Anda) //
+-- // Fungsi utama (Struktur Asli Dipertahankan, dengan penyesuaian dari skrip Anda) //
 local function runCycle()
 	local function updateStatus(text) 
         if StatusLabel and StatusLabel.Parent then
@@ -235,7 +251,7 @@ local function runCycle()
 
 	if not scriptRunning then return end
 	updateStatus("Persiapan ganti map...")
-	waitSeconds(timers.wait_1m30s_after_first_items) -- Menggunakan timer Alur yang sudah ada
+	waitSeconds(timers.wait_1m30s_after_first_items) 
 	if not scriptRunning then return end
 
 	local function changeMap(name) 
@@ -284,12 +300,8 @@ local function runCycle()
 		updateStatus("Melewati HiddenRemote (UpdateQi tidak aktif/dijeda).")
 	end
 	task.wait(timers.genericShortDelay) 
-
-    -- --- MODIFIED: Waktu tunggu sebelum Forbidden Zone dihilangkan ---
-	-- updateStatus("Persiapan Forbidden Zone (" .. timers.wait_before_forbidden_zone .. "s)...")
-	-- waitSeconds(timers.wait_before_forbidden_zone) 
+    
     updateStatus("Persiapan Forbidden Zone (langsung)...")
-    -- --- END MODIFIED ---
 	if not scriptRunning then return end
 
 	updateStatus("Memasuki Forbidden Zone...")
@@ -312,17 +324,13 @@ local function runCycle()
     if not scriptRunning then return end
     updateStatus("Comprehend Selesai.")
 
-    -- --- ADDED: Kembali ke Hidden setelah Comprehend selesai, sebelum UpdateQi pasca-Comprehend ---
     if scriptRunning then
         updateStatus("Mengatur status ke Hidden setelah Comprehend...")
         if not fireRemoteEnhanced("HiddenRemote", "AreaEvents", {}) then
             updateStatus("Gagal menjalankan HiddenRemote setelah Comprehend.")
-            -- Pertimbangkan apakah skrip harus berhenti di sini atau melanjutkan
-            -- Untuk saat ini, kita hanya catat dan lanjutkan
         end
-        task.wait(timers.genericShortDelay) -- Beri jeda singkat
+        task.wait(timers.genericShortDelay) 
     end
-    -- --- END ADDED ---
 
 	if not scriptRunning then return end
 	updateStatus("Final UpdateQi (" .. timers.post_comprehend_qi_duration .. "s)...")
@@ -347,7 +355,7 @@ end
 -- Loop Latar Belakang yang Ditingkatkan (Dari skrip Anda)
 local function increaseAptitudeMineLoop_enhanced()
     if StatusLabel and StatusLabel.Parent then 
-        StatusLabel.Text = "Status: Loop Aptitude/Mine Dimulai."
+        -- StatusLabel.Text = "Status: Loop Aptitude/Mine Dimulai." -- Mengurangi update status yang terlalu sering
     end
     while scriptRunning do 
         fireRemoteEnhanced("IncreaseAptitude", "Base", {})
@@ -360,7 +368,7 @@ end
 
 local function updateQiLoop_enhanced()
     if StatusLabel and StatusLabel.Parent then 
-        StatusLabel.Text = "Status: Loop UpdateQi Dimulai."
+        -- StatusLabel.Text = "Status: Loop UpdateQi Dimulai." -- Mengurangi update status yang terlalu sering
     end
     while scriptRunning do 
         if not stopUpdateQi and not pauseUpdateQiTemporarily then 
@@ -411,9 +419,9 @@ end)
 ApplyTimersButton.MouseButton1Click:Connect(function()
     local function applyTextInput(inputElement, timerKey, labelElement)
         local success = false
-        if not inputElement then return false end -- Pemeriksaan tambahan jika elemen UI tidak ada
+        if not inputElement then return false end 
         local value = tonumber(inputElement.Text)
-        if value and value > 0 then
+        if value and value >= 0 then -- Memperbolehkan 0 untuk "ditiadakan"
             timers[timerKey] = value
             if labelElement then pcall(function() labelElement.TextColor = Color3.fromRGB(0,200,0) end) end 
             success = true
@@ -426,7 +434,6 @@ ApplyTimersButton.MouseButton1Click:Connect(function()
     local allTimersValid = true
     allTimersValid = applyTextInput(timerElements.wait1m30sInput, "wait_1m30s_after_first_items", timerElements.Wait1m30sLabel) and allTimersValid
     allTimersValid = applyTextInput(timerElements.wait40sInput, "alur_wait_40s_hide_qi", timerElements.Wait40sLabel) and allTimersValid
-    -- Timer untuk wait_1m_before_forbidden ditiadakan, jadi validasinya juga
     allTimersValid = applyTextInput(timerElements.comprehendInput, "comprehend_duration", timerElements.ComprehendLabel) and allTimersValid
     allTimersValid = applyTextInput(timerElements.postComprehendQiInput, "post_comprehend_qi_duration", timerElements.PostComprehendQiLabel) and allTimersValid
 
@@ -434,7 +441,7 @@ ApplyTimersButton.MouseButton1Click:Connect(function()
     if allTimersValid then
         updateStatus("Semua timer berhasil diterapkan.")
     else
-        updateStatus("Ada input timer tidak valid! Periksa angka (harus > 0).")
+        updateStatus("Ada input timer tidak valid! Periksa angka (harus >= 0).")
     end
 
     task.wait(2) 
@@ -450,13 +457,15 @@ MinimizeButton.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
         MinimizeButton.Text = "+" 
-        Frame.Size = UDim2.fromOffset(Frame.Size.X.Offset, minimizedFrameSizeY) 
+        Frame.Size = UDim2.fromOffset(Frame.Size.X.Offset, minimizedHeaderHeight) 
         for _, element in ipairs(elementsToToggleVisibility) do
             if element and element.Parent then element.Visible = false end
         end
-        StartButton.Position = UDim2.new(0, 10, 0, 10)
-        StatusLabel.Position = UDim2.new(0, 10, 0, 50)
-        MinimizeButton.Position = UDim2.new(1, -25, 0, 5)
+        -- Reposition elements for minimized view
+        UiTitleLabel.Position = UDim2.new(0, 10, 0, 5)
+        StartButton.Position = UDim2.new(0, 10, 0, UiTitleLabel.Position.Y.Offset + UiTitleLabel.Size.Y.Offset + 5)
+        StatusLabel.Position = UDim2.new(0, 10, 0, StartButton.Position.Y.Offset + StartButton.Size.Y.Offset + 5)
+        MinimizeButton.Position = UDim2.new(1, -25, 0, 5) -- Tetap di pojok atas frame yang di-resize
 
     else
         MinimizeButton.Text = "-" 
@@ -464,10 +473,45 @@ MinimizeButton.MouseButton1Click:Connect(function()
         for _, element in ipairs(elementsToToggleVisibility) do
             if element and element.Parent then element.Visible = true end
         end
-        StartButton.Position = UDim2.new(0, 10, 0, 10) 
-        StatusLabel.Position = UDim2.new(0, 10, 0, 50) 
+        -- Kembalikan posisi elemen ke posisi asli mereka
+        UiTitleLabel.Position = UDim2.new(0, 10, 0, 10)
+        StartButton.Position = UDim2.new(0, 10, 0, 10 + yOffsetForTitle)
+        StatusLabel.Position = UDim2.new(0, 10, 0, 50 + yOffsetForTitle)
+         -- Posisi elemen timer lainnya sudah diatur relatif saat pembuatan UI awal
     end
 end)
+
+-- --- ADDED: Animasi untuk UiTitleLabel ---
+spawn(function()
+    if not UiTitleLabel or not UiTitleLabel.Parent then return end -- Pastikan label ada
+    local hue = 0
+    local S, V = 1, 1 -- Saturasi dan Value tinggi untuk warna cerah
+    local speed = 0.01 -- Kecepatan perubahan hue
+    local redIntensity = 0.7 -- Seberapa dominan merah (0.5 normal, >0.5 lebih merah)
+
+    while ScreenGui and ScreenGui.Parent do -- Terus berjalan selama UI ada
+        hue = (hue + speed) % 1
+        
+        local r, g, b = Color3.fromHSV(hue, S, V).R, Color3.fromHSV(hue, S, V).G, Color3.fromHSV(hue, S, V).B
+        
+        -- Tingkatkan komponen merah
+        r = math.min(1, r + redIntensity)
+        g = g * (1 - redIntensity * 0.5) -- Kurangi hijau sedikit jika merah dominan
+        b = b * (1 - redIntensity * 0.5) -- Kurangi biru sedikit jika merah dominan
+        
+        UiTitleLabel.TextColor3 = Color3.new(r, g, b)
+        
+        -- Efek "pixel" atau "glitch" sederhana dengan mengubah stroke color
+        if math.random() < 0.1 then -- 10% chance setiap frame
+            UiTitleLabel.TextStrokeColor3 = Color3.fromHSV(math.random(), 1, 1)
+            UiTitleLabel.TextStrokeTransparency = math.random() * 0.5
+        else
+            UiTitleLabel.TextStrokeTransparency = 1 -- Sembunyikan stroke
+        end
+        task.wait() -- Update setiap frame untuk animasi smooth
+    end
+end)
+-- --- END ADDED ---
 
 -- BindToClose (Dari skrip Anda)
 game:BindToClose(function()
@@ -483,7 +527,7 @@ game:BindToClose(function()
 end)
 
 -- Inisialisasi dari skrip Anda
-print("Skrip Otomatisasi (Versi Alur Forbidden Disesuaikan) Telah Dimuat.")
+print("Skrip Otomatisasi (Versi dengan Nama UI & Animasi) Telah Dimuat.")
 task.wait(1)
 if ScreenGui and not ScreenGui.Parent then 
     print("Mencoba memparentkan UI ke CoreGui lagi...")
