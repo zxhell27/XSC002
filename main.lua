@@ -4,6 +4,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Player
 local player = Players.LocalPlayer
+if not player then
+    -- Jika script berjalan di environment dimana LocalPlayer tidak langsung tersedia
+    -- (sangat jarang untuk LocalScript di PlayerGui, tapi sebagai tindakan pencegahan)
+    warn("LocalPlayer not available at script start. Waiting...")
+    Players.PlayerAdded:Wait() -- Ini akan menunggu player manapun, bukan spesifik LocalPlayer
+    player = Players.LocalPlayer
+    if not player then
+        error("Fatal: LocalPlayer could not be determined.")
+        return -- Hentikan eksekusi script
+    end
+end
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- Create ScreenGui
@@ -124,34 +135,38 @@ local function formatTime(seconds)
     return string.format("%02d:%02d", mins, secs)
 end
 
--- <<<< PERBAIKAN UTAMA: Definisi fungsi updateStatus >>>>
+-- Fungsi untuk memperbarui label status
 local function updateStatus(newStatus)
-    if statusLabel then
+    if statusLabel and statusLabel.Parent then -- Pastikan statusLabel masih ada
         statusLabel.Text = "Status: " .. tostring(newStatus)
-        -- print("Status Updated: " .. tostring(newStatus)) -- Uncomment untuk debugging di console
+        -- print("Status Updated: " .. tostring(newStatus)) -- Uncomment untuk debugging
     else
-        warn("Error: statusLabel is nil. Cannot update status to: " .. tostring(newStatus))
+        warn("Attempted to update status, but statusLabel is nil or removed. Status: " .. tostring(newStatus))
     end
 end
 
 local running = false
-local stopUpdateQi = false -- Flag untuk mengontrol loop UpdateQi secara spesifik
+local stopUpdateQi = false 
 
--- Updated waitSeconds with timer and stop check
-local function waitSeconds(secondsToWait) -- Mengganti nama parameter agar lebih jelas
+-- Fungsi tunggu yang diperbarui dengan pemeriksaan 'running' dan update timer
+local function waitSeconds(secondsToWait)
     local startTime = tick()
     while tick() - startTime < secondsToWait and running do
         local elapsed = math.floor(tick() - startTime)
         local remaining = math.max(0, secondsToWait - elapsed)
-        timerLabel.Text = "Timer: "..formatTime(remaining)
-        wait(1) -- Tunggu 1 detik
+        if timerLabel and timerLabel.Parent then
+            timerLabel.Text = "Timer: "..formatTime(remaining)
+        end
+        wait(1)
     end
-    if running then -- Hanya reset timer jika siklus masih berjalan dan waktu tunggu selesai
-        timerLabel.Text = "Timer: 00:00"
+    if timerLabel and timerLabel.Parent then
+        timerLabel.Text = "Timer: 00:00" -- Selalu reset timer jika waktu tunggu selesai atau dihentikan
     end
 end
 
+-- Fungsi untuk mendapatkan input angka yang aman dari TextBox
 local function safeNumberInput(textBox, default)
+    if not (textBox and textBox:IsA("TextBox")) then return default end
     local num = tonumber(textBox.Text)
     if num == nil or num <= 0 then
         return default
@@ -159,23 +174,31 @@ local function safeNumberInput(textBox, default)
     return num
 end
 
--- Fungsi untuk melakukan satu siklus penuh
+-- Fungsi utama untuk menjalankan satu siklus
 local function runCycle()
-    -- Menggunakan pcall untuk menangani potensi error saat FireServer
+    -- Fungsi wrapper untuk memanggil RemoteEvent dengan aman menggunakan pcall
     local function safeFireServer(remoteEvent, ...)
-        local success, err = pcall(function()
+        if not remoteEvent then
+            warn("safeFireServer called with a nil RemoteEvent.")
+            updateStatus("Error: Internal script error (nil remote)")
+            running = false
+            return false
+        end
+        
+        local success, errOrResult = pcall(function()
             remoteEvent:FireServer(...)
         end)
+        
         if not success then
-            warn("Error firing RemoteEvent "..remoteEvent.Name..":", err)
-            updateStatus("Error: "..remoteEvent.Name)
-            running = false -- Hentikan siklus jika ada error kritis
+            warn("Error firing RemoteEvent '"..remoteEvent.Name.."':", errOrResult)
+            updateStatus("Error with: "..remoteEvent.Name)
+            running = false -- Hentikan siklus jika ada error kritis saat FireServer
         end
         return success
     end
     
     -- Pastikan RemoteEvents folder ada
-    local remoteEventsFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
+    local remoteEventsFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10) -- Tunggu maksimal 10 detik
     if not remoteEventsFolder then
         updateStatus("Error: RemoteEvents folder missing!")
         running = false
@@ -183,193 +206,189 @@ local function runCycle()
     end
 
     -- Fungsi helper untuk mendapatkan RemoteEvent dengan aman
-    local function getRemote(name)
-        local event = remoteEventsFolder:FindFirstChild(name)
+    local function getRemote(folder, name)
+        if not folder then return nil end
+        local event = folder:FindFirstChild(name)
         if not event then
-            warn("RemoteEvent not found:", name)
-            updateStatus("Error: Missing event "..name)
+            warn("RemoteEvent not found: '"..name.."' in folder '"..folder.Name.."'")
+            updateStatus("Error: Missing event '"..name.."'")
             running = false -- Hentikan jika event penting tidak ada
         end
         return event
     end
     
-    local areaEventsFolder = remoteEventsFolder:FindFirstChild("AreaEvents")
-    if not areaEventsFolder then
-        updateStatus("Error: AreaEvents folder missing!")
-        running = false
-        return
+    local areaEventsFolder = getRemote(remoteEventsFolder, "AreaEvents")
+    if not areaEventsFolder then 
+        -- getRemote sudah set running = false dan updateStatus
+        return 
     end
     
-    local function getAreaRemote(name)
-        local event = areaEventsFolder:FindFirstChild(name)
-        if not event then
-            warn("AreaRemoteEvent not found:", name)
-            updateStatus("Error: Missing area event "..name)
-            running = false
-        end
-        return event
-    end
-
+    -- --- MULAI SIKLUS ---
+    if not running then return end -- Cek sebelum setiap langkah besar
     updateStatus("Reincarnating...")
-    local reincarnateEvent = getRemote("Reincarnate")
-    if not reincarnateEvent or not safeFireServer(reincarnateEvent) then return end
+    local reincarnateEvent = getRemote(remoteEventsFolder, "Reincarnate")
+    if not safeFireServer(reincarnateEvent) then return end
 
     -- Spawn thread untuk IncreaseAptitude dan Mine
     local aptitudeMineThread
-    aptitudeMineThread = spawn(function()
-        local increaseAptitudeEvent = getRemote("IncreaseAptitude")
-        local mineEvent = getRemote("Mine")
-        if not increaseAptitudeEvent or not mineEvent then 
-            running = false -- Hentikan jika event penting tidak ada
-            return -- Keluar dari thread ini jika event tidak ditemukan
-        end
+    aptitudeMineThread = coroutine.create(function() -- Menggunakan coroutine untuk kontrol yang lebih baik
+        local increaseAptitudeEvent = getRemote(remoteEventsFolder, "IncreaseAptitude")
+        local mineEvent = getRemote(remoteEventsFolder, "Mine")
+        if not (increaseAptitudeEvent and mineEvent) then return end
 
         while running do
             if not safeFireServer(increaseAptitudeEvent) then break end
             if not safeFireServer(mineEvent) then break end
-            wait() -- Beri sedikit jeda agar tidak membebani server
+            wait() 
         end
     end)
+    coroutine.resume(aptitudeMineThread)
 
     -- Spawn thread untuk UpdateQi
-    stopUpdateQi = false -- Reset flag sebelum memulai loop baru
+    stopUpdateQi = false 
     local updateQiThread
-    updateQiThread = spawn(function()
-        local updateQiEvent = getRemote("UpdateQi")
-        if not updateQiEvent then 
-            running = false
-            return 
-        end
+    updateQiThread = coroutine.create(function()
+        local updateQiEvent = getRemote(remoteEventsFolder, "UpdateQi")
+        if not updateQiEvent then return end
         
         while running and not stopUpdateQi do
             if not safeFireServer(updateQiEvent) then break end
             wait(1)
         end
     end)
+    coroutine.resume(updateQiThread)
 
+    if not running then return end
     local itemList1 = {
-        "Nine Heavens Galaxy Water",
-        "Buzhou Divine Flower",
-        "Fusang Divine Tree",
-        "Calm Cultivation Mat"
+        "Nine Heavens Galaxy Water", "Buzhou Divine Flower",
+        "Fusang Divine Tree", "Calm Cultivation Mat"
     }
-    local buyItemEvent = getRemote("BuyItem")
-    if not buyItemEvent then return end
+    local buyItemEvent = getRemote(remoteEventsFolder, "BuyItem")
     for _, item in ipairs(itemList1) do
-        if not running then return end -- Periksa flag running sebelum setiap aksi
+        if not running then return end 
         if not safeFireServer(buyItemEvent, item) then return end
     end
 
+    if not running then return end
     local waitAfterBatch1 = safeNumberInput(waitAfterBatch1Input, 90)
     updateStatus("Waiting " .. waitAfterBatch1 .. "s after Batch 1")
     waitSeconds(waitAfterBatch1)
-    if not running then return end
 
-    local changeMapEvent = getAreaRemote("ChangeMap")
-    if not changeMapEvent then return end
+    if not running then return end
+    local changeMapEvent = getRemote(areaEventsFolder, "ChangeMap")
     if not safeFireServer(changeMapEvent, "immortal") then return end
     if not running then return end
     if not safeFireServer(changeMapEvent, "chaos") then return end
-    if not running then return end
 
+    if not running then return end
     updateStatus("Running ChaoticRoad")
-    local chaoticRoadEvent = getAreaRemote("ChaoticRoad")
-    if not chaoticRoadEvent or not safeFireServer(chaoticRoadEvent) then return end
-    if not running then return end
+    local chaoticRoadEvent = getRemote(areaEventsFolder, "ChaoticRoad")
+    if not safeFireServer(chaoticRoadEvent) then return end
 
+    if not running then return end
     local waitAfterChaoticRoad = safeNumberInput(waitAfterChaoticRoadInput, 40)
     updateStatus("Waiting " .. waitAfterChaoticRoad .. "s after ChaoticRoad")
     waitSeconds(waitAfterChaoticRoad)
-    if not running then return end
 
+    if not running then return end
     local itemList2 = {
-        "Traceless Breeze Lotus",
-        "Reincarnation World Destruction Black Lotus",
+        "Traceless Breeze Lotus", "Reincarnation World Destruction Black Lotus",
         "Ten Thousand Bodhi Tree"
     }
-    -- buyItemEvent sudah didapatkan sebelumnya
     for _, item in ipairs(itemList2) do
         if not running then return end
         if not safeFireServer(buyItemEvent, item) then return end
     end
-    if not running then return end
     
+    if not running then return end
     if not safeFireServer(changeMapEvent, "immortal") then return end
-    if not running then return end
 
-    local hiddenRemoteEvent = getAreaRemote("HiddenRemote")
-    if not hiddenRemoteEvent or not safeFireServer(hiddenRemoteEvent) then return end
     if not running then return end
+    local hiddenRemoteEvent = getRemote(areaEventsFolder, "HiddenRemote")
+    if not safeFireServer(hiddenRemoteEvent) then return end
 
+    if not running then return end
     local waitBeforeForbidden = safeNumberInput(waitBeforeForbiddenInput, 60)
     updateStatus("Waiting " .. waitBeforeForbidden .. "s before ForbiddenZone")
     waitSeconds(waitBeforeForbidden)
-    if not running then return end
 
+    if not running then return end
     updateStatus("Entering ForbiddenZone")
-    local forbiddenZoneEvent = getAreaRemote("ForbiddenZone")
-    if not forbiddenZoneEvent or not safeFireServer(forbiddenZoneEvent) then return end
-    if not running then return end
+    local forbiddenZoneEvent = getRemote(areaEventsFolder, "ForbiddenZone")
+    if not safeFireServer(forbiddenZoneEvent) then return end
 
+    if not running then return end
     local comprehendDuration = safeNumberInput(comprehendDurationInput, 120)
     updateStatus("Comprehending " .. comprehendDuration .. "s")
-    stopUpdateQi = true -- Hentikan UpdateQi selama comprehend
+    stopUpdateQi = true 
     
     local comprehendStartTime = tick()
-    local comprehendEvent = getRemote("Comprehend")
-    if not comprehendEvent then return end
-
+    local comprehendEvent = getRemote(remoteEventsFolder, "Comprehend")
     while tick() - comprehendStartTime < comprehendDuration and running do
         if not safeFireServer(comprehendEvent) then break end
         local elapsed = math.floor(tick() - comprehendStartTime)
         local remaining = math.max(0, comprehendDuration - elapsed)
-        timerLabel.Text = "Timer: " .. formatTime(remaining)
+        if timerLabel and timerLabel.Parent then
+            timerLabel.Text = "Timer: " .. formatTime(remaining)
+        end
         wait(1)
     end
-    if not running then return end
-    timerLabel.Text = "Timer: 00:00" -- Reset timer setelah comprehend selesai atau dihentikan
+    if timerLabel and timerLabel.Parent then timerLabel.Text = "Timer: 00:00" end
 
+    if not running then return end
     local updateQiDuration = safeNumberInput(updateQiDurationInput, 300)
     updateStatus("UpdateQi for " .. updateQiDuration .. "s")
-    stopUpdateQi = false -- Izinkan UpdateQi berjalan lagi
-    -- Loop UpdateQi utama akan mengambil alih jika masih berjalan, atau kita tunggu di sini
+    stopUpdateQi = false 
     waitSeconds(updateQiDuration) 
-    if not running then return end
 
-    stopUpdateQi = true -- Pastikan UpdateQi berhenti di akhir siklus jika belum
-    timerLabel.Text = "Timer: 00:00" -- Final reset timer
-    updateStatus("Cycle finished. Restarting if still running...")
+    stopUpdateQi = true 
+    if timerLabel and timerLabel.Parent then timerLabel.Text = "Timer: 00:00" end
+    if running then -- Hanya tampilkan ini jika siklus selesai secara normal dan masih 'running'
+        updateStatus("Cycle finished. Restarting...")
+    end
 end
 
--- Buttons
+-- Tombol Start
 startButton.MouseButton1Click:Connect(function()
     if not running then
         running = true
         updateStatus("Cycle Started")
-        -- Menggunakan coroutine.wrap untuk penanganan error yang lebih baik pada thread utama siklus
-        local cycleCoroutine = coroutine.wrap(function()
+        
+        -- Menjalankan siklus utama dalam coroutine baru untuk mencegah pembekuan GUI
+        -- dan memungkinkan penanganan error yang lebih baik dalam siklus tersebut.
+        local mainCycleCoroutine = coroutine.create(function()
             while running do
-                runCycle()
-                if running then -- Jika masih running, beri jeda sebelum siklus berikutnya
-                    wait(1) 
+                runCycle() -- Panggil fungsi siklus
+                if not running then -- Jika runCycle (atau sesuatu di dalamnya) mengubah running menjadi false
+                    break
                 end
+                -- Beri jeda singkat sebelum memulai siklus berikutnya jika masih berjalan
+                -- Ini juga memberi kesempatan untuk flag 'running' diperbarui oleh tombol stop.
+                wait(1) 
             end
-            updateStatus("Cycle Stopped Internally") -- Jika loop selesai karena running = false
-            timerLabel.Text = "Timer: 00:00"
+            
+            -- Setelah loop selesai (baik karena 'running' jadi false atau error yang tidak tertangani di atas)
+            if not (statusLabel and statusLabel.Text == "Status: Cycle Stopping...") then
+                 updateStatus("Cycle Stopped")
+            end
+            if timerLabel and timerLabel.Parent then timerLabel.Text = "Timer: 00:00" end
         end)
-        cycleCoroutine() -- Jalankan coroutine
+        coroutine.resume(mainCycleCoroutine)
     end
 end)
 
+-- Tombol Stop
 stopButton.MouseButton1Click:Connect(function()
     if running then
         running = false
-        updateStatus("Cycle Stopping...") -- Beri tahu pengguna bahwa sedang proses berhenti
-        -- Tidak perlu secara eksplisit menghentikan thread spawn karena mereka memeriksa flag `running`
-        -- Namun, pastikan semua waitSeconds dan loop internal menghormati flag `running`
+        updateStatus("Cycle Stopping...") 
+        -- Loop di coroutine utama akan berhenti karena flag 'running' sudah false.
+        -- Semua fungsi waitSeconds dan loop internal juga harus memeriksa flag 'running'.
     end
-    -- Status akan diupdate menjadi "Cycle Stopped" oleh loop utama atau setelah waitSeconds selesai
 end)
 
--- Initialize UI
+-- Inisialisasi UI saat skrip dimuat
 updateStatus("Idle")
+if timerLabel and timerLabel.Parent then timerLabel.Text = "Timer: 00:00" end
+
+print("Zedlist Cultivation Script Loaded and UI Initialized.")
