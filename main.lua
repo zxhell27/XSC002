@@ -1,6 +1,5 @@
--- Services
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+local UserInputService = game:GetService("User InputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Player
@@ -18,9 +17,10 @@ local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
 mainFrame.Size = UDim2.new(0, 300, 0, 400)
 mainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
+mainFrame.BackgroundTransparency = 0.1
 
 -- Make MainFrame draggable
 mainFrame.Active = true
@@ -30,13 +30,26 @@ mainFrame.Draggable = true
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "TitleLabel"
 titleLabel.Size = UDim2.new(1, 0, 0, 40)
-titleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+titleLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 titleLabel.BorderSizePixel = 0
-titleLabel.Text = "Zedlist Cultivation Script"
+titleLabel.Text = "ZXHELL - Zedlist Cultivation Script"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.Font = Enum.Font.SourceSansBold
 titleLabel.TextSize = 20
 titleLabel.Parent = mainFrame
+
+-- Minimize Button
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Name = "MinimizeButton"
+minimizeButton.Size = UDim2.new(0, 40, 0, 40)
+minimizeButton.Position = UDim2.new(1, -80, 0, 0)
+minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+minimizeButton.BorderSizePixel = 0
+minimizeButton.Text = "-"
+minimizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+minimizeButton.Font = Enum.Font.SourceSansBold
+minimizeButton.TextSize = 20
+minimizeButton.Parent = mainFrame
 
 -- Close Button
 local closeButton = Instance.new("TextButton")
@@ -79,7 +92,7 @@ for i, labelText in ipairs(inputLabels) do
     local textBox = Instance.new("TextBox")
     textBox.Size = UDim2.new(0, 80, 0, 25)
     textBox.Position = UDim2.new(0, 210, 0, yPosition)
-    textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    textBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     textBox.BorderSizePixel = 0
     textBox.Text = "60"
     textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -148,6 +161,30 @@ toggleButton.Parent = screenGui
 local function updateStatus(text)
     statusLabel.Text = "Status: " .. text
 end
+
+-- Function to minimize the UI
+local function minimizeUI()
+    mainFrame.Visible = false
+    toggleButton.Visible = true
+end
+
+-- Function to restore the UI
+local function restoreUI()
+    mainFrame.Visible = true
+    toggleButton.Visible = false
+end
+
+-- Connect minimize button
+minimizeButton.MouseButton1Click:Connect(minimizeUI)
+
+-- Connect close button
+closeButton.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    toggleButton.Visible = true
+end)
+
+-- Connect toggle button
+toggleButton.MouseButton1Click:Connect(restoreUI)
 
 -- Function to wait for a certain number of seconds
 local function waitSeconds(seconds)
@@ -252,6 +289,3 @@ local function runCycle()
         updateStatus("Cycle Complete - Restarting")
     end
 end
-
- 
-
