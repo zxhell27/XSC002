@@ -6,384 +6,278 @@ local StatusLabel = Instance.new("TextLabel")
 
 -- --- ADDED: Variabel Kontrol dan State ---
 local scriptRunning = false
-local stopUpdateQi = false -- Flag dari skrip asli Anda
-local pauseUpdateQiTemporarily = false -- Flag baru untuk jeda UpdateQi sementara
-local mainCycleThread = nil
-local aptitudeMineThread = nil
-local updateQiThread = nil
-local uiCreated = false -- Flag untuk memastikan UI hanya dibuat sekali atau di-refresh
+local mainCycleThread = nil -- Untuk menampung thread siklus utama
+local aptitudeMineThread = nil -- Untuk loop IncreaseAptitude/Mine
+local updateQiThread = nil -- Untuk loop UpdateQi
 
--- --- ADDED: Tabel Konfigurasi Timer (nilai dari "Alur" dan skrip Anda) ---
+-- Flag 'stopUpdateQi' dari skrip asli Anda, akan dikelola lebih eksplisit
+-- Flag baru 'pauseUpdateQiTemporarily' untuk kondisi "UpdateQi di hidden"
+local stopUpdateQiGlobal = false
+local pauseUpdateQiTemporarily = false
+
+-- --- ADDED: Tabel Konfigurasi Timer (dalam detik) ---
+-- Ini adalah tempat Anda dapat menyesuaikan semua durasi tunggu.
 local timers = {
-    -- Durasi dari skrip referensi Anda (bisa disesuaikan atau dikaitkan ke UI)
-    wait_before_items1 = 60,
-    wait_after_items1_before_map_change = 30,
-    wait_before_items2 = 60, -- Skrip Anda menggunakan 60, "Alur" menyebut 40. Default ke 60, bisa diubah.
-    wait_before_forbidden_zone = 60,
-    comprehendDuration = 120, -- Akan dikaitkan ke UI
-    postComprehendUpdateQiDuration = 120, -- Akan dikaitkan ke UI
+    reincarnate_delay = 0.5, -- Penundaan singkat setelah reincarnate
+    increase_aptitude_mine_interval = 0.1, -- Interval dalam loop IncreaseAptitude/Mine (ditambah task.wait())
+    update_qi_interval = 1, -- Interval untuk UpdateQi [cite: 12]
+    
+    -- Pembelian item (cukup sekali)
+    buy_item_delay_short = 0.25, -- Penundaan antar pembelian item
 
-    -- Interval & penundaan lain dari "Alur" atau untuk operasi
-    updateQiInterval = 1,
-    aptitudeMineInterval = 0.1, -- Penundaan kecil antar Aptitude & Mine
-    genericShortDelay = 0.5, -- Untuk operasi singkat seperti FireServer
-    reincarnateDelay = 0.5
+    -- Urutan setelah pembelian item pertama
+    wait_after_first_items_before_map_change = 90, -- 1 menit 30 detik [cite: 1, 12]
+    change_map_delay = 0.5, -- Penundaan singkat setelah ganti map
+
+    -- Urutan setelah ChaoticRoad
+    wait_before_second_items_and_hide_qi = 40, -- Tunggu 40 detik, UpdateQi di hidden [cite: 1, 12]
+
+    -- Urutan setelah kembali ke map immortal kedua kali
+    wait_before_forbidden_zone = 60, -- Tunggu 1 menit [cite: 1, 12]
+    
+    -- Fase Comprehend
+    comprehend_duration = 120, -- 2 menit [cite: 1, 12]
+    comprehend_fire_interval = 1, -- Seberapa sering FireServer("Comprehend") dipanggil selama durasi
+
+    -- Fase UpdateQi setelah Comprehend
+    post_comprehend_update_qi_duration = 120, -- 2 menit [cite: 1, 12]
+
+    -- Penundaan lain jika diperlukan
+    generic_short_pause = 0.5
 }
--- --- END ADDED ---
 
 -- // Parent UI ke player (Struktur Asli Dipertahankan) //
--- --- MODIFIED: Dibungkus fungsi agar bisa dipanggil ulang jika perlu & memastikan CoreGui siap ---
-local function setupCoreGuiParenting()
-    local coreGuiService = game:GetService("CoreGui")
-    if not ScreenGui.Parent or ScreenGui.Parent ~= coreGuiService then
-        ScreenGui.Parent = coreGuiService
-    end
-    if not Frame.Parent or Frame.Parent ~= ScreenGui then
-        Frame.Parent = ScreenGui
-    end
-    if not StartButton.Parent or StartButton.Parent ~= Frame then
-        StartButton.Parent = Frame
-    end
-    if not StatusLabel.Parent or StatusLabel.Parent ~= Frame then
-        StatusLabel.Parent = Frame
-    end
-end
-setupCoreGuiParenting() -- Panggil saat inisialisasi
+ScreenGui.Parent = game:GetService("CoreGui")
+Frame.Parent = ScreenGui
+StartButton.Parent = Frame
+StatusLabel.Parent = Frame
 
--- // Desain UI (Struktur Asli Dipertahankan, dengan penambahan untuk timer) //
-Frame.Size = UDim2.new(0, 250, 0, 320) -- --- MODIFIED: Ukuran Frame diperbesar untuk UI timer ---
-Frame.Position = UDim2.new(0.02, 0, 0.02, 0) -- --- MODIFIED: Posisi sedikit disesuaikan ---
+-- // Desain UI (Struktur Asli Dipertahankan) //
+Frame.Size = UDim2.new(0, 200, 0, 120)
+Frame.Position = UDim2.new(0.02, 0, 0.02, 0) -- Sedikit penyesuaian untuk tidak terlalu ke pinggir
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-Frame.Active = true -- --- ADDED: Untuk memastikan bisa di-drag ---
-Frame.Draggable = true -- --- ADDED: Membuat frame bisa digeser ---
-Frame.BorderSizePixel = 1 -- --- ADDED ---
-Frame.BorderColor3 = Color3.fromRGB(80, 80, 80) -- --- ADDED ---
+Frame.Active = true -- Untuk memastikan bisa di-drag
+Frame.Draggable = true -- Membuat frame bisa digeser
+Frame.BorderSizePixel = 1
+Frame.BorderColor3 = Color3.fromRGB(80,80,80)
 
 
-StartButton.Size = UDim2.new(1, -20, 0, 30) -- --- MODIFIED: Ukuran disesuaikan dengan frame baru ---
-StartButton.Position = UDim2.new(0, 10, 0, 10) -- --- MODIFIED: Posisi disesuaikan ---
+StartButton.Size = UDim2.new(1, -20, 0, 40) -- Disesuaikan dengan padding frame
+StartButton.Position = UDim2.new(0, 10, 0, 10)
 StartButton.Text = "Start Script"
 StartButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-StartButton.Font = Enum.Font.SourceSansBold -- --- ADDED: Konsistensi Font ---
+StartButton.Font = Enum.Font.SourceSansBold
 
-StatusLabel.Size = UDim2.new(1, -20, 0, 40) -- --- MODIFIED: Ukuran disesuaikan ---
-StatusLabel.Position = UDim2.new(0, 10, 0, 50) -- --- MODIFIED: Posisi disesuaikan ---
+StatusLabel.Size = UDim2.new(1, -20, 0, 40) -- Disesuaikan dengan padding frame
+StatusLabel.Position = UDim2.new(0, 10, 0, 60)
 StatusLabel.Text = "Status: Idle"
 StatusLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-StatusLabel.Font = Enum.Font.SourceSans -- --- ADDED: Konsistensi Font ---
-StatusLabel.TextWrapped = true -- --- ADDED ---
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left -- --- ADDED ---
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextWrapped = true
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
--- --- ADDED: UI Elements untuk Timer Configuration ---
-local TimerTitleLabel = Instance.new("TextLabel")
-TimerTitleLabel.Name = "TimerTitle"
-TimerTitleLabel.Parent = Frame
-TimerTitleLabel.Size = UDim2.new(1, -20, 0, 20)
-TimerTitleLabel.Position = UDim2.new(0, 10, 0, 100)
-TimerTitleLabel.Text = "Konfigurasi Timer (detik):"
-TimerTitleLabel.BackgroundTransparency = 1
-TimerTitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-TimerTitleLabel.Font = Enum.Font.SourceSansBold
-TimerTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-local ComprehendLabel = Instance.new("TextLabel")
-ComprehendLabel.Name = "ComprehendLabel"
-ComprehendLabel.Parent = Frame
-ComprehendLabel.Size = UDim2.new(0.5, -15, 0, 20)
-ComprehendLabel.Position = UDim2.new(0, 10, 0, 130)
-ComprehendLabel.Text = "Comprehend:"
-ComprehendLabel.BackgroundTransparency = 1
-ComprehendLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-ComprehendLabel.Font = Enum.Font.SourceSans
-ComprehendLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local ComprehendInput = Instance.new("TextBox")
-ComprehendInput.Name = "ComprehendInput"
-ComprehendInput.Parent = Frame
-ComprehendInput.Size = UDim2.new(0.5, -15, 0, 20)
-ComprehendInput.Position = UDim2.new(0.5, 5, 0, 130)
-ComprehendInput.Text = tostring(timers.comprehendDuration)
-ComprehendInput.PlaceholderText = "Detik"
-ComprehendInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-ComprehendInput.TextColor3 = Color3.fromRGB(220, 220, 220)
-ComprehendInput.Font = Enum.Font.SourceSans
-ComprehendInput.ClearTextOnFocus = false
-ComprehendInput.BorderColor3 = Color3.fromRGB(20,20,20)
-
-local PostComprehendQiLabel = Instance.new("TextLabel")
-PostComprehendQiLabel.Name = "PostCompQiLabel"
-PostComprehendQiLabel.Parent = Frame
-PostComprehendQiLabel.Size = UDim2.new(0.5, -15, 0, 30)
-PostComprehendQiLabel.Position = UDim2.new(0, 10, 0, 160)
-PostComprehendQiLabel.Text = "Post-Comp Qi:"
-PostComprehendQiLabel.BackgroundTransparency = 1
-PostComprehendQiLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-PostComprehendQiLabel.Font = Enum.Font.SourceSans
-PostComprehendQiLabel.TextXAlignment = Enum.TextXAlignment.Left
-PostComprehendQiLabel.TextWrapped = true
-
-local PostComprehendQiInput = Instance.new("TextBox")
-PostComprehendQiInput.Name = "PostCompQiInput"
-PostComprehendQiInput.Parent = Frame
-PostComprehendQiInput.Size = UDim2.new(0.5, -15, 0, 20)
-PostComprehendQiInput.Position = UDim2.new(0.5, 5, 0, 165)
-PostComprehendQiInput.Text = tostring(timers.postComprehendUpdateQiDuration)
-PostComprehendQiInput.PlaceholderText = "Detik"
-PostComprehendQiInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-PostComprehendQiInput.TextColor3 = Color3.fromRGB(220, 220, 220)
-PostComprehendQiInput.Font = Enum.Font.SourceSans
-PostComprehendQiInput.ClearTextOnFocus = false
-PostComprehendQiInput.BorderColor3 = Color3.fromRGB(20,20,20)
-
-local ApplyTimersButton = Instance.new("TextButton")
-ApplyTimersButton.Name = "ApplyTimersButton"
-ApplyTimersButton.Parent = Frame
-ApplyTimersButton.Size = UDim2.new(1, -20, 0, 30)
-ApplyTimersButton.Position = UDim2.new(0, 10, 0, 200) -- Di bawah input
-ApplyTimersButton.Text = "Terapkan Timer"
-ApplyTimersButton.BackgroundColor3 = Color3.fromRGB(0, 100, 150)
-ApplyTimersButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ApplyTimersButton.Font = Enum.Font.SourceSansBold
--- --- END ADDED UI Elements ---
-
--- // Fungsi tunggu (Struktur Asli Dipertahankan) //
--- --- MODIFIED: Diganti dengan task.wait() untuk efisiensi dan presisi ---
+-- // Fungsi tunggu (Struktur Asli Dipertahankan, namun implementasi dioptimalkan) //
 local function waitSeconds(sec)
-    --[[ Versi Asli Pengguna:
-	local start = tick()
-	while tick() - start < sec do wait() end
-    --]]
-    -- Versi yang Dioptimalkan:
-    if sec <= 0 then task.wait() return end -- Handle non-positive waits
-    local startTime = tick()
-    repeat
-        task.wait() -- Yield to other scripts
-    until not scriptRunning or tick() - startTime >= sec
+    local targetTime = tick() + sec
+    while tick() < targetTime and scriptRunning do -- --- MODIFIED: Memeriksa scriptRunning ---
+        task.wait() -- --- MODIFIED: Menggunakan task.wait() untuk efisiensi ---
+    end
 end
--- --- END MODIFIED ---
 
--- --- ADDED: Fungsi fireRemote dengan pcall ---
+-- --- ADDED: Fungsi utilitas untuk memanggil RemoteEvent dengan aman (pcall) ---
 local function fireRemoteEnhanced(remoteName, pathType, ...)
-    local argsToUnpack = table.pack(...)
+    local argsToUnpack = table.pack(...) -- Menggunakan table.pack untuk menangani nil arguments dengan aman
     local remoteEventFolder
     local success = false
-    local errMessage = "Unknown error"
+    local errorMessage = "Unknown error"
 
-    local pcallSuccess, pcallResult = pcall(function()
+    local pcallSuccess, result = pcall(function()
         if pathType == "AreaEvents" then
             remoteEventFolder = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents", 9e9):WaitForChild("AreaEvents", 9e9)
-        else
+        else -- "Base"
             remoteEventFolder = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents", 9e9)
         end
+        
         local remote = remoteEventFolder:WaitForChild(remoteName, 9e9)
         remote:FireServer(table.unpack(argsToUnpack, 1, argsToUnpack.n))
     end)
 
     if pcallSuccess then
         success = true
-        -- print("Berhasil fire: " .. remoteName) -- Komentari untuk mengurangi spam log
+        -- print("Berhasil fire: " .. remoteName) -- Bisa di-uncomment untuk debugging
     else
-        errMessage = tostring(pcallResult)
-        if StatusLabel and StatusLabel.Parent then -- Pastikan UI ada
-             StatusLabel.Text = "Status: Error firing " .. remoteName -- Tampilkan error di UI
+        errorMessage = tostring(result)
+        if StatusLabel and StatusLabel.Parent then
+            StatusLabel.Text = "Status: Error firing " .. remoteName
         end
-        print("Error firing " .. remoteName .. ": " .. errMessage)
-        success = false
+        print("Error firing " .. remoteName .. ": " .. errorMessage)
     end
     return success
 end
 -- --- END ADDED ---
 
--- // Fungsi utama (Struktur Asli Dipertahankan, dengan penyesuaian logika & pemanggilan fireRemoteEnhanced) //
+
+-- // Fungsi utama (Struktur Asli Dipertahankan, dengan penyesuaian logika & timer) //
 local function runCycle()
 	local function updateStatus(text) -- Fungsi updateStatus lokal dari skrip Anda
-        if StatusLabel and StatusLabel.Parent then
-		    StatusLabel.Text = "Status: " .. text
-        end
-        print("Status: " .. text) -- Tambahkan print untuk log
+		if StatusLabel and StatusLabel.Parent then -- Pastikan UI masih ada
+			StatusLabel.Text = "Status: " .. text
+		end
+		print("Status: " .. text) -- Tambahkan print untuk logging
 	end
 
-	updateStatus("Reincarnating")
-	-- --- MODIFIED: Menggunakan fireRemoteEnhanced ---
-	if not fireRemoteEnhanced("Reincarnate", "Base", {}) then scriptRunning = false; return end
-    task.wait(timers.reincarnateDelay) -- --- ADDED: Penundaan singkat setelah Reincarnate ---
+    if not scriptRunning then return end -- Keluar jika skrip dihentikan di tengah siklus
+	updateStatus("Reincarnating...")
+	if not fireRemoteEnhanced("Reincarnate", "Base", {}) then scriptRunning = false; return end -- [cite: 12]
+	task.wait(timers.reincarnate_delay) -- Penundaan singkat
 
-    -- Loop Aptitude/Mine dan UpdateQi dikontrol oleh thread terpisah dan flag scriptRunning
+    -- Loop IncreaseAptitude/Mine dan UpdateQi sudah berjalan di thread terpisah
+    -- dan dikontrol oleh flag 'scriptRunning' serta 'stopUpdateQiGlobal'/'pauseUpdateQiTemporarily'.
 
-	if not scriptRunning then return end -- --- ADDED: Pemeriksaan scriptRunning ---
-	updateStatus("Persiapan item set 1...")
-	-- --- MODIFIED: Menggunakan timers.wait_before_items1 ---
-	waitSeconds(timers.wait_before_items1) -- Sesuai struktur asli Anda: tunggu dulu
-	if not scriptRunning then return end
-
-	local item1 = {
-		"Nine Heavens Galaxy Water", "Buzhou Divine Flower",
-		"Fusang Divine Tree", "Calm Cultivation Mat"
+    if not scriptRunning then return end
+	updateStatus("Membeli item set 1...")
+	local itemsToBuy1 = {
+		"Nine Heavens Galaxy Water", -- [cite: 13]
+		"Buzhou Divine Flower", -- [cite: 14]
+		"Fusang Divine Tree", -- [cite: 15]
+		"Calm Cultivation Mat" -- [cite: 16]
 	}
-	for _, item in ipairs(item1) do
-		if not scriptRunning then return end -- --- ADDED: Pemeriksaan scriptRunning ---
-		updateStatus("Membeli: " .. item)
-		-- --- MODIFIED: Menggunakan fireRemoteEnhanced, dan argumen item langsung ---
-		if not fireRemoteEnhanced("BuyItem", "Base", item) then scriptRunning = false; return end
-		task.wait(timers.buyItemDelay) -- --- ADDED: Penundaan kecil antar pembelian ---
+	for _, itemName in ipairs(itemsToBuy1) do
+		if not scriptRunning then return end
+		updateStatus("Membeli: " .. itemName)
+		if not fireRemoteEnhanced("BuyItem", "Base", itemName) then scriptRunning = false; return end
+		task.wait(timers.buy_item_delay_short) -- Penundaan singkat antar pembelian
 	end
 
-	if not scriptRunning then return end
-	updateStatus("Persiapan ganti map...")
-	-- --- MODIFIED: Menggunakan timers.wait_after_items1_before_map_change ---
-	waitSeconds(timers.wait_after_items1_before_map_change)
+    if not scriptRunning then return end
+	updateStatus(string.format("Menunggu %.1f detik sebelum ganti map...", timers.wait_after_first_items_before_map_change))
+	waitSeconds(timers.wait_after_first_items_before_map_change) -- [cite: 1]
 	if not scriptRunning then return end
 
-	local function changeMap(name) -- Fungsi changeMap lokal dari skrip Anda
-		-- --- MODIFIED: Menggunakan fireRemoteEnhanced ---
-		return fireRemoteEnhanced("ChangeMap", "AreaEvents", name)
+	local function changeMap(mapName) -- Fungsi changeMap lokal dari skrip Anda
+		return fireRemoteEnhanced("ChangeMap", "AreaEvents", mapName)
 	end
-	if not changeMap("immortal") then scriptRunning = false; return end
-	task.wait(timers.genericShortDelay)
-	if not scriptRunning then return end
-	if not changeMap("chaos") then scriptRunning = false; return end
-	task.wait(timers.genericShortDelay)
+	updateStatus("Mengganti map ke 'immortal'...")
+	if not changeMap("immortal") then scriptRunning = false; return end -- [cite: 17]
+	task.wait(timers.change_map_delay)
+	
+    if not scriptRunning then return end
+	updateStatus("Mengganti map ke 'chaos'...")
+	if not changeMap("chaos") then scriptRunning = false; return end -- [cite: 18]
+	task.wait(timers.change_map_delay)
 
-	if not scriptRunning then return end
-	updateStatus("Chaotic Road")
-	-- --- MODIFIED: Menggunakan fireRemoteEnhanced ---
-	if not fireRemoteEnhanced("ChaoticRoad", "AreaEvents", {}) then scriptRunning = false; return end
-	task.wait(timers.genericShortDelay)
+    if not scriptRunning then return end
+	updateStatus("Memasuki Chaotic Road...")
+	if not fireRemoteEnhanced("ChaoticRoad", "AreaEvents", {}) then scriptRunning = false; return end -- [cite: 1]
+	task.wait(timers.generic_short_pause)
 
-	if not scriptRunning then return end
-	updateStatus("Persiapan item set 2...")
-	-- --- MODIFIED: Menggunakan timers.wait_before_items2 (default 40s dari Alur, bisa diubah) ---
-	-- --- "Alur" meminta UpdateQi dijeda di sini (selama 40 detik) ---
-	pauseUpdateQiTemporarily = true -- --- ADDED: Jeda UpdateQi ---
-	updateStatus("UpdateQi dijeda untuk persiapan item...")
-	waitSeconds(timers.wait_before_items2)
-	pauseUpdateQiTemporarily = false -- --- ADDED: Lanjutkan UpdateQi ---
+    if not scriptRunning then return end
+	updateStatus(string.format("Menunggu %.1f detik (UpdateQi akan dijeda)...", timers.wait_before_second_items_and_hide_qi))
+	pauseUpdateQiTemporarily = true -- "UpdateQi di hidden" [cite: 1]
+	updateStatus("UpdateQi dijeda sementara.")
+	waitSeconds(timers.wait_before_second_items_and_hide_qi) -- [cite: 1]
+	pauseUpdateQiTemporarily = false
 	updateStatus("UpdateQi dilanjutkan.")
 	if not scriptRunning then return end
 
-	local item2 = {
-		"Traceless Breeze Lotus",
-		"Reincarnation World Destruction Black Lotus",
-		"Ten Thousand Bodhi Tree"
+	updateStatus("Membeli item set 2...")
+	local itemsToBuy2 = {
+		"Traceless Breeze Lotus", -- [cite: 19]
+		"Reincarnation World Destruction Black Lotus", -- [cite: 20]
+		"Ten Thousand Bodhi Tree" -- [cite: 21]
 	}
-	for _, item in ipairs(item2) do
+	for _, itemName in ipairs(itemsToBuy2) do
 		if not scriptRunning then return end
-		updateStatus("Membeli: " .. item)
-		-- --- MODIFIED: Menggunakan fireRemoteEnhanced ---
-		if not fireRemoteEnhanced("BuyItem", "Base", item) then scriptRunning = false; return end
-		task.wait(timers.buyItemDelay)
+		updateStatus("Membeli: " .. itemName)
+		if not fireRemoteEnhanced("BuyItem", "Base", itemName) then scriptRunning = false; return end
+		task.wait(timers.buy_item_delay_short)
 	end
 
-	if not scriptRunning then return end
-	if not changeMap("immortal") then scriptRunning = false; return end
-	task.wait(timers.genericShortDelay)
-
-	-- --- ADDED: Logika kondisional untuk HiddenRemote sesuai "Alur" ---
-	if scriptRunning and not stopUpdateQi and not pauseUpdateQiTemporarily then
-		updateStatus("Menjalankan HiddenRemote (UpdateQi aktif)...")
-		if not fireRemoteEnhanced("HiddenRemote", "AreaEvents", {}) then scriptRunning = false; return end
-	else
-		updateStatus("Melewati HiddenRemote (UpdateQi tidak aktif/dijeda).")
-	end
-	task.wait(timers.genericShortDelay)
-	-- --- END ADDED ---
-
-	if not scriptRunning then return end
-	updateStatus("Persiapan Forbidden Zone...")
-	-- --- MODIFIED: Menggunakan timers.wait_before_forbidden_zone (Alur: 1 menit) ---
-	waitSeconds(timers.wait_before_forbidden_zone)
-	if not scriptRunning then return end
-	updateStatus("Memasuki Forbidden Zone...")
-	-- --- MODIFIED: Menggunakan fireRemoteEnhanced ---
-	if not fireRemoteEnhanced("ForbiddenZone", "AreaEvents", {}) then scriptRunning = false; return end
-	task.wait(timers.genericShortDelay)
-
-	if not scriptRunning then return end
-	updateStatus("Comprehending...")
-	stopUpdateQi = true -- Flag dari skrip asli Anda, ini akan menghentikan loop UpdateQi
-	
-    -- --- MODIFIED: Menggunakan timers.comprehendDuration dan loop yang lebih aman ---
-	local comprehendStartTime = tick()
-	while scriptRunning and (tick() - comprehendStartTime < timers.comprehendDuration) do
-		if not fireRemoteEnhanced("Comprehend", "Base", {}) then
-            updateStatus("Event Comprehend gagal.")
-            -- Mungkin tidak perlu `scriptRunning = false` di sini agar siklus bisa lanjut ke post-comprehend
-            break -- Keluar dari loop comprehend jika gagal
-        end
-        updateStatus(string.format("Comprehending... %d detik tersisa", math.floor(timers.comprehendDuration - (tick() - comprehendStartTime))))
-		task.wait(1) -- "Alur" tidak menyebut interval, 1 detik adalah asumsi wajar
-        -- wait() asli dari skrip Anda di sini akan membuat CPU usage tinggi
-	end
     if not scriptRunning then return end
-    updateStatus("Comprehend Selesai.")
+	updateStatus("Mengganti map kembali ke 'immortal'...")
+	if not changeMap("immortal") then scriptRunning = false; return end -- [cite: 22]
+	task.wait(timers.change_map_delay)
 
-
-	if not scriptRunning then return end
-	updateStatus("Final UpdateQi")
-	stopUpdateQi = false -- Izinkan UpdateQi berjalan lagi
-    -- Loop UpdateQi akan mengambil alih secara otomatis jika scriptRunning true.
-
-    -- --- MODIFIED: Menggunakan timers.postComprehendUpdateQiDuration ---
-	-- Daripada `waitSeconds` di sini, kita biarkan loop UpdateQi berjalan selama durasi ini
-    updateStatus(string.format("Post-Comprehend UpdateQi selama %d detik...", timers.postComprehendUpdateQiDuration))
-    local postComprehendQiStartTime = tick()
-    while scriptRunning and (tick() - postComprehendQiStartTime < timers.postComprehendUpdateQiDuration) do
-        -- Pastikan loop UpdateQi benar-benar berjalan (stopUpdateQi = false)
-        if stopUpdateQi then -- Jika ada kondisi tak terduga yang menghentikannya lagi
-            updateStatus("Loop UpdateQi terhenti saat Post-Comprehend.")
-            break
-        end
-        updateStatus(string.format("Post-Comprehend UpdateQi aktif... %d detik tersisa", math.floor(timers.postComprehendUpdateQiDuration - (tick() - postComprehendQiStartTime))))
-        task.wait(1)
+    -- "Lalu kemudian jalankan inii sekali jika sedang Updateqi" [cite: 1]
+    if scriptRunning and not stopUpdateQiGlobal and not pauseUpdateQiTemporarily then
+	    updateStatus("Menjalankan HiddenRemote (karena UpdateQi aktif)...")
+	    if not fireRemoteEnhanced("HiddenRemote", "AreaEvents", {}) then scriptRunning = false; return end -- [cite: 1]
+    else
+        updateStatus("Melewati HiddenRemote (UpdateQi tidak aktif/dijeda).")
     end
+	task.wait(timers.generic_short_pause)
+
     if not scriptRunning then return end
-    -- "Alur" menyiratkan setelah ini skrip dimulai dari awal (Reincarnate).
-    -- Skrip asli Anda memiliki: stopUpdateQi = true di akhir. Ini akan menghentikan UpdateQi sebelum restart siklus.
-    -- Jika UpdateQi harus terus berjalan hingga Reincarnate berikutnya, baris ini bisa dihilangkan.
-    -- Untuk saat ini, kita pertahankan perilaku asli skrip Anda:
-	stopUpdateQi = true 
+	updateStatus(string.format("Menunggu %.1f detik sebelum Forbidden Zone...", timers.wait_before_forbidden_zone))
+	waitSeconds(timers.wait_before_forbidden_zone) -- [cite: 1]
+	if not scriptRunning then return end
 
-	updateStatus("Cycle Done - Restarting")
+	updateStatus("Memasuki Forbidden Zone...")
+	if not fireRemoteEnhanced("ForbiddenZone", "AreaEvents", {}) then scriptRunning = false; return end -- [cite: 1]
+	task.wait(timers.generic_short_pause)
+
+    if not scriptRunning then return end
+	updateStatus(string.format("Memulai Comprehend selama %.1f detik...", timers.comprehend_duration))
+	stopUpdateQiGlobal = true -- Hentikan UpdateQi selama Comprehend [cite: 12]
+	updateStatus("UpdateQi dihentikan untuk Comprehend.")
+	
+	local comprehendStartTime = tick()
+	while scriptRunning and (tick() - comprehendStartTime < timers.comprehend_duration) do
+		if not fireRemoteEnhanced("Comprehend", "Base", {}) then -- [cite: 1]
+            updateStatus("Event Comprehend gagal, melanjutkan...")
+            break -- Keluar dari loop Comprehend jika ada error
+        end
+        updateStatus(string.format("Comprehending... %.0f detik tersisa", timers.comprehend_duration - (tick() - comprehendStartTime)))
+		task.wait(timers.comprehend_fire_interval) -- Panggil Comprehend secara berkala
+	end
+    if not scriptRunning then return end
+	updateStatus("Comprehend selesai.")
+
+    if not scriptRunning then return end
+	updateStatus(string.format("Melanjutkan UpdateQi selama %.1f detik...", timers.post_comprehend_update_qi_duration))
+	stopUpdateQiGlobal = false -- Aktifkan kembali UpdateQi [cite: 1]
+	updateStatus("UpdateQi dilanjutkan setelah Comprehend.")
+	
+    -- Biarkan loop UpdateQi yang sudah ada berjalan. Cukup tunggu durasinya di sini.
+	waitSeconds(timers.post_comprehend_update_qi_duration) -- [cite: 1]
+    if not scriptRunning then return end
+	updateStatus("Fase UpdateQi setelah Comprehend selesai.")
+    
+    -- Skrip akan restart dari awal karena loop di StartButton.MouseButton1Click
+	updateStatus("Siklus Selesai - Akan Memulai Ulang...")
 end
-
 
 -- --- ADDED: Loop Latar Belakang yang Ditingkatkan ---
-local function increaseAptitudeMineLoop_enhanced()
-    if StatusLabel and StatusLabel.Parent then -- Pastikan UI ada
-        StatusLabel.Text = "Status: Loop Aptitude/Mine Dimulai."
-    end
-    print("Status: Loop Aptitude/Mine Dimulai.")
+local function increaseAptitudeMineLoop()
+    updateStatus("Loop Aptitude & Mine dimulai.")
     while scriptRunning do -- --- MODIFIED: Menggunakan scriptRunning ---
-        -- local args = {} -- Args tidak perlu didefinisikan ulang setiap iterasi jika selalu kosong
-        fireRemoteEnhanced("IncreaseAptitude", "Base", {})
-        task.wait(timers.aptitudeMineInterval) -- --- MODIFIED: Menggunakan task.wait dan timer ---
-        if not scriptRunning then break end
-        fireRemoteEnhanced("Mine", "Base", {})
-        task.wait() -- wait() asli dari skrip Anda, untuk yield
+        fireRemoteEnhanced("IncreaseAptitude", "Base", {}) -- [cite: 12]
+        task.wait(timers.increase_aptitude_mine_interval)
+        if not scriptRunning then break end -- Periksa lagi sebelum fire berikutnya
+        fireRemoteEnhanced("Mine", "Base", {}) -- [cite: 12]
+        task.wait() -- task.wait() tanpa argumen akan yield selama satu frame (mirip wait() lama) [cite: 12]
     end
-    print("Status: Loop Aptitude/Mine Dihentikan.")
+    print("Loop Aptitude & Mine dihentikan.")
 end
 
-local function updateQiLoop_enhanced()
-    if StatusLabel and StatusLabel.Parent then -- Pastikan UI ada
-        StatusLabel.Text = "Status: Loop UpdateQi Dimulai."
-    end
-    print("Status: Loop UpdateQi Dimulai.")
+local function updateQiLoop()
+    updateStatus("Loop UpdateQi dimulai.")
     while scriptRunning do -- --- MODIFIED: Menggunakan scriptRunning ---
-        if not stopUpdateQi and not pauseUpdateQiTemporarily then -- Memeriksa kedua flag
-            -- local args = {} -- Args tidak perlu didefinisikan ulang
-            fireRemoteEnhanced("UpdateQi", "Base", {})
+        -- Periksa kedua flag: stopUpdateQiGlobal (untuk Comprehend) dan pauseUpdateQiTemporarily (untuk "hidden")
+        if not stopUpdateQiGlobal and not pauseUpdateQiTemporarily then
+            fireRemoteEnhanced("UpdateQi", "Base", {}) -- [cite: 12]
         end
-        task.wait(timers.updateQiInterval) -- --- MODIFIED: Menggunakan task.wait dan timer ---
+        task.wait(timers.update_qi_interval) -- [cite: 12]
     end
-    print("Status: Loop UpdateQi Dihentikan.")
+    print("Loop UpdateQi dihentikan.")
 end
 -- --- END ADDED ---
 
 
--- // Jalankan saat tombol ditekan (Struktur Asli Dipertahankan, dengan modifikasi untuk kontrol) //
+-- // Jalankan saat tombol ditekan (Struktur Asli Dipertahankan, dengan modifikasi untuk kontrol yang lebih baik) //
 -- --- MODIFIED: Logika Start/Stop yang Lebih Baik ---
 StartButton.MouseButton1Click:Connect(function()
     scriptRunning = not scriptRunning -- Toggle state
@@ -391,104 +285,58 @@ StartButton.MouseButton1Click:Connect(function()
     if scriptRunning then
         StartButton.Text = "Running..."
         StartButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
-        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "Status: Memulai skrip..." end
-        print("Status: Memulai skrip...")
+        updateStatus("Memulai skrip...")
 
-        -- Pastikan flag disetel dengan benar sebelum memulai loop
-        stopUpdateQi = false
+        -- Reset flag sebelum memulai loop
+        stopUpdateQiGlobal = false
         pauseUpdateQiTemporarily = false
 
         -- Mulai loop latar belakang jika belum berjalan atau sudah mati
         if not aptitudeMineThread or coroutine.status(aptitudeMineThread) == "dead" then
-            aptitudeMineThread = spawn(increaseAptitudeMineLoop_enhanced)
+            aptitudeMineThread = spawn(increaseAptitudeMineLoop)
         end
         if not updateQiThread or coroutine.status(updateQiThread) == "dead" then
-            updateQiThread = spawn(updateQiLoop_enhanced)
+            updateQiThread = spawn(updateQiLoop)
         end
 
         -- Mulai siklus utama dalam thread baru jika belum berjalan atau sudah mati
         if not mainCycleThread or coroutine.status(mainCycleThread) == "dead" then
             mainCycleThread = spawn(function()
                 while scriptRunning do
-                    runCycle() -- Panggil fungsi runCycle asli Anda (yang telah dimodifikasi di atas)
-                    if not scriptRunning then break end
-                    if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "Status: Siklus selesai. Memulai ulang..." end
-                    print("Status: Siklus selesai. Memulai ulang...")
-                    task.wait(1) -- Penundaan singkat sebelum siklus berikutnya
+                    runCycle() -- Panggil fungsi runCycle yang telah disempurnakan
+                    if not scriptRunning then break end -- Keluar jika skrip dihentikan di tengah siklus
+                    -- Status "Siklus Selesai - Akan Memulai Ulang..." sudah diatur di akhir runCycle()
+                    task.wait(1) -- Penundaan singkat sebelum benar-benar memulai ulang siklus
                 end
-                if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "Status: Skrip Dihentikan." end
-                print("Status: Skrip Dihentikan.")
-                -- Reset tampilan tombol setelah loop utama benar-benar berhenti
-                StartButton.Text = "Start Script"
+                -- Ini hanya akan tercapai jika scriptRunning menjadi false
+                updateStatus("Skrip Dihentikan.")
+                StartButton.Text = "Start Script" -- Reset tampilan tombol
                 StartButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
             end)
         end
     else
-        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "Status: Menghentikan skrip..." end
-        print("Status: Menghentikan skrip...")
-        -- Loop akan berhenti karena 'scriptRunning' menjadi false.
-        -- Tombol akan direset teks & warnanya ketika mainCycleThread selesai.
+        updateStatus("Menghentikan skrip...")
+        -- Flag 'scriptRunning = false' akan secara otomatis menghentikan semua loop yang memeriksanya.
+        -- Tampilan tombol akan direset ketika mainCycleThread selesai (karena 'scriptRunning' jadi false).
     end
 end)
 -- --- END MODIFIED ---
 
--- --- ADDED: Event Listener untuk Tombol Terapkan Timer ---
-ApplyTimersButton.MouseButton1Click:Connect(function()
-    local newComprehend = tonumber(ComprehendInput.Text)
-    local newPostQi = tonumber(PostComprehendQiInput.Text)
-    local changesApplied = false
-    local originalStatus = StatusLabel.Text:gsub("Status: ", "")
+-- Inisialisasi status UI awal
+StatusLabel.Text = "Status: Idle. Klik 'Start Script'."
 
-    if newComprehend and newComprehend > 0 then
-        timers.comprehendDuration = newComprehend
-        ComprehendInput.BorderColor3 = Color3.fromRGB(0, 200, 0) -- Hijau untuk sukses
-        changesApplied = true
-    else
-        ComprehendInput.BorderColor3 = Color3.fromRGB(200, 0, 0) -- Merah untuk error
-    end
-
-    if newPostQi and newPostQi > 0 then
-        timers.postComprehendUpdateQiDuration = newPostQi
-        PostComprehendQiInput.BorderColor3 = Color3.fromRGB(0, 200, 0)
-        changesApplied = true
-    else
-        PostComprehendQiInput.BorderColor3 = Color3.fromRGB(200, 0, 0)
-    end
-
-    if changesApplied then
-        updateStatus("Timer berhasil diperbarui.")
-    else
-        updateStatus("Input timer tidak valid.")
-    end
-    task.wait(1.5)
-    ComprehendInput.BorderColor3 = Color3.fromRGB(20,20,20) -- Reset warna border
-    PostComprehendQiInput.BorderColor3 = Color3.fromRGB(20,20,20)
-    updateStatus(originalStatus) -- Kembalikan status sebelumnya
-end)
--- --- END ADDED ---
-
--- --- ADDED: BindToClose untuk pembersihan ---
+-- --- ADDED: BindToClose untuk pembersihan jika game ditutup ---
 game:BindToClose(function()
     if scriptRunning then
         print("Game ditutup, menghentikan skrip...")
-        scriptRunning = false
-        task.wait(0.5) -- Beri waktu untuk loop berhenti
+        scriptRunning = false -- Memberi sinyal semua loop untuk berhenti
+        task.wait(0.5) -- Beri waktu sedikit untuk loop berhenti
     end
     if ScreenGui and ScreenGui.Parent then
-        pcall(function() ScreenGui:Destroy() end) -- Hapus UI
+        pcall(function() ScreenGui:Destroy() end) -- Hapus UI dengan aman
     end
-    print("Pembersihan skrip selesai.")
+    print("Pembersihan skrip saat game ditutup selesai.")
 end)
 -- --- END ADDED ---
 
-print("Skrip Otomatisasi (Versi Tambahan) Telah Dimuat. UI mungkin perlu beberapa saat untuk muncul.")
--- Panggil setupCoreGuiParenting lagi setelah beberapa saat jika ada masalah timing dengan CoreGui
-task.wait(1)
-if not ScreenGui.Parent then
-    print("Mencoba memparentkan UI ke CoreGui lagi...")
-    setupCoreGuiParenting()
-end
--- Inisialisasi status awal di UI jika belum
-if StatusLabel and StatusLabel.Parent and StatusLabel.Text == "" then
-    StatusLabel.Text = "Status: Idle"
-end
+print("Skrip Otomatisasi (Versi Tambahan Detail) Telah Dimuat.")
