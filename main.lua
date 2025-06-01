@@ -15,33 +15,29 @@ screenGui.Parent = playerGui
 -- Create MainFrame
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 300, 0, 440) -- Extra height for timer
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -220)
+mainFrame.Size = UDim2.new(0, 400, 0, 600)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -300)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
-
--- Make MainFrame draggable
 mainFrame.Active = true
 mainFrame.Draggable = true
 
 -- Title Label
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Name = "TitleLabel"
 titleLabel.Size = UDim2.new(1, 0, 0, 40)
 titleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 titleLabel.BorderSizePixel = 0
 titleLabel.Text = "ZXHELL - Zedlist Cultivation Script"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.Font = Enum.Font.SourceSansBold
-titleLabel.TextSize = 20
+titleLabel.TextSize = 22
 titleLabel.Parent = mainFrame
 
 -- Status Label
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Name = "StatusLabel"
-statusLabel.Size = UDim2.new(1, -20, 0, 30)
-statusLabel.Position = UDim2.new(0, 10, 0, 50)
+statusLabel.Size = UDim2.new(1, -20, 0, 25)
+statusLabel.Position = UDim2.new(0, 10, 0, 45)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "Status: Idle"
 statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -52,22 +48,55 @@ statusLabel.Parent = mainFrame
 
 -- Timer Label
 local timerLabel = Instance.new("TextLabel")
-timerLabel.Name = "TimerLabel"
 timerLabel.Size = UDim2.new(1, -20, 0, 25)
-timerLabel.Position = UDim2.new(0, 10, 0, 85)
+timerLabel.Position = UDim2.new(0, 10, 0, 70)
 timerLabel.BackgroundTransparency = 1
 timerLabel.Text = "Timer: 00:00"
-timerLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+timerLabel.TextColor3 = Color3.fromRGB(180, 180, 255)
 timerLabel.Font = Enum.Font.SourceSansItalic
 timerLabel.TextSize = 16
 timerLabel.TextXAlignment = Enum.TextXAlignment.Left
 timerLabel.Parent = mainFrame
 
+-- Helper function to create label and textbox for seconds input
+local function createLabeledInput(text, positionY, defaultValue)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, 0, 0, 25)
+    label.Position = UDim2.new(0, 10, 0, positionY)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = mainFrame
+
+    local textBox = Instance.new("TextBox")
+    textBox.Size = UDim2.new(0.25, 0, 0, 25)
+    textBox.Position = UDim2.new(0.72, 0, 0, positionY)
+    textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    textBox.BorderSizePixel = 0
+    textBox.Text = tostring(defaultValue)
+    textBox.ClearTextOnFocus = false
+    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textBox.Font = Enum.Font.SourceSans
+    textBox.TextSize = 14
+    textBox.Parent = mainFrame
+
+    return textBox
+end
+
+-- Create inputs for each wait duration
+local waitAfterBatch1Input = createLabeledInput("Wait after buying Batch 1 (seconds)", 105, 90)
+local waitAfterChaoticRoadInput = createLabeledInput("Wait after ChaoticRoad (seconds)", 135, 40)
+local waitBeforeForbiddenInput = createLabeledInput("Wait before ForbiddenZone (seconds)", 165, 60)
+local comprehendDurationInput = createLabeledInput("Comprehend duration (seconds)", 195, 120)
+local updateQiDurationInput = createLabeledInput("UpdateQi duration (seconds)", 225, 300)
+
 -- Start Button
 local startButton = Instance.new("TextButton")
-startButton.Name = "StartButton"
-startButton.Size = UDim2.new(0, 130, 0, 40)
-startButton.Position = UDim2.new(0, 10, 1, -90)
+startButton.Size = UDim2.new(0, 160, 0, 40)
+startButton.Position = UDim2.new(0, 20, 1, -60)
 startButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 startButton.BorderSizePixel = 0
 startButton.Text = "▶ Start"
@@ -78,9 +107,8 @@ startButton.Parent = mainFrame
 
 -- Stop Button
 local stopButton = Instance.new("TextButton")
-stopButton.Name = "StopButton"
-stopButton.Size = UDim2.new(0, 130, 0, 40)
-stopButton.Position = UDim2.new(0, 160, 1, -90)
+stopButton.Size = UDim2.new(0, 160, 0, 40)
+stopButton.Position = UDim2.new(0, 180, 1, -60)
 stopButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 stopButton.BorderSizePixel = 0
 stopButton.Text = "■ Stop"
@@ -89,12 +117,7 @@ stopButton.Font = Enum.Font.SourceSansBold
 stopButton.TextSize = 20
 stopButton.Parent = mainFrame
 
--- Function to update status
-local function updateStatus(text)
-    statusLabel.Text = "Status: " .. text
-end
-
--- Function to format seconds to MM:SS
+-- Utility: format seconds MM:SS
 local function formatTime(seconds)
     local mins = math.floor(seconds / 60)
     local secs = seconds % 60
@@ -104,16 +127,24 @@ end
 local running = false
 local stopUpdateQi = false
 
--- Modified waitSeconds with timer display and stop check
+-- Updated waitSeconds with timer and stop check
 local function waitSeconds(seconds)
     local start = tick()
     while tick() - start < seconds and running do
         local elapsed = math.floor(tick() - start)
         local remaining = math.max(0, seconds - elapsed)
-        timerLabel.Text = "Timer: " .. formatTime(remaining)
+        timerLabel.Text = "Timer: "..formatTime(remaining)
         wait(1)
     end
     timerLabel.Text = "Timer: 00:00"
+end
+
+local function safeNumberInput(textBox, default)
+    local num = tonumber(textBox.Text)
+    if num == nil or num <= 0 then
+        return default
+    end
+    return num
 end
 
 local function runCycle()
@@ -150,8 +181,9 @@ local function runCycle()
         ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("BuyItem"):FireServer(unpack(args))
     end
 
-    updateStatus("Waiting 1:30")
-    waitSeconds(90)
+    local waitAfterBatch1 = safeNumberInput(waitAfterBatch1Input, 90)
+    updateStatus("Waiting " .. waitAfterBatch1 .. " seconds after Batch 1")
+    waitSeconds(waitAfterBatch1)
 
     local args = { [1] = "immortal" }
     ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChangeMap"):FireServer(unpack(args))
@@ -162,8 +194,9 @@ local function runCycle()
     updateStatus("Running ChaoticRoad")
     ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChaoticRoad"):FireServer(unpack({}))
 
-    updateStatus("Waiting 0:40")
-    waitSeconds(40)
+    local waitAfterChaoticRoad = safeNumberInput(waitAfterChaoticRoadInput, 40)
+    updateStatus("Waiting " .. waitAfterChaoticRoad .. " seconds after ChaoticRoad")
+    waitSeconds(waitAfterChaoticRoad)
 
     local itemList2 = {
         "Traceless Breeze Lotus",
@@ -180,31 +213,35 @@ local function runCycle()
 
     ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("HiddenRemote"):FireServer(unpack({}))
 
-    updateStatus("Waiting 1:00")
-    waitSeconds(60)
+    local waitBeforeForbidden = safeNumberInput(waitBeforeForbiddenInput, 60)
+    updateStatus("Waiting " .. waitBeforeForbidden .. " seconds before ForbiddenZone")
+    waitSeconds(waitBeforeForbidden)
 
     updateStatus("Entering ForbiddenZone")
     ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ForbiddenZone"):FireServer(unpack({}))
 
-    updateStatus("Comprehend 2:00")
+    local comprehendDuration = safeNumberInput(comprehendDurationInput, 120)
+    updateStatus("Comprehending " .. comprehendDuration .. " seconds")
     stopUpdateQi = true
     local startTime = tick()
-    while tick() - startTime < 120 and running do
+    while tick() - startTime < comprehendDuration and running do
         local args = {}
         ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("Comprehend"):FireServer(unpack(args))
-        local remaining = math.max(0,120 - math.floor(tick() - startTime))
+        local remaining = math.max(0, comprehendDuration - math.floor(tick() - startTime))
         timerLabel.Text = "Timer: " .. formatTime(remaining)
         wait(1)
     end
 
-    updateStatus("UpdateQi 5:00")
+    local updateQiDuration = safeNumberInput(updateQiDurationInput, 300)
+    updateStatus("UpdateQi for " .. updateQiDuration .. " seconds")
     stopUpdateQi = false
-    waitSeconds(300)
+    waitSeconds(updateQiDuration)
 
     stopUpdateQi = true
     timerLabel.Text = "Timer: 00:00"
 end
 
+-- Buttons
 startButton.MouseButton1Click:Connect(function()
     if not running then
         running = true
@@ -223,4 +260,5 @@ stopButton.MouseButton1Click:Connect(function()
     timerLabel.Text = "Timer: 00:00"
 end)
 
+-- Initialize UI
 updateStatus("Idle")
