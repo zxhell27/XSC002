@@ -15,8 +15,8 @@ screenGui.Parent = playerGui
 -- Create MainFrame
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 300, 0, 400)
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+mainFrame.Size = UDim2.new(0, 300, 0, 440) -- Extra height for timer
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -220)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
@@ -50,6 +50,19 @@ statusLabel.TextSize = 14
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = mainFrame
 
+-- Timer Label
+local timerLabel = Instance.new("TextLabel")
+timerLabel.Name = "TimerLabel"
+timerLabel.Size = UDim2.new(1, -20, 0, 25)
+timerLabel.Position = UDim2.new(0, 10, 0, 85)
+timerLabel.BackgroundTransparency = 1
+timerLabel.Text = "Timer: 00:00"
+timerLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+timerLabel.Font = Enum.Font.SourceSansItalic
+timerLabel.TextSize = 16
+timerLabel.TextXAlignment = Enum.TextXAlignment.Left
+timerLabel.Parent = mainFrame
+
 -- Start Button
 local startButton = Instance.new("TextButton")
 startButton.Name = "StartButton"
@@ -81,25 +94,33 @@ local function updateStatus(text)
     statusLabel.Text = "Status: " .. text
 end
 
--- Function to wait for a certain number of seconds
-local function waitSeconds(seconds)
-    local start = tick()
-    while tick() - start < seconds do
-        wait()
-    end
+-- Function to format seconds to MM:SS
+local function formatTime(seconds)
+    local mins = math.floor(seconds / 60)
+    local secs = seconds % 60
+    return string.format("%02d:%02d", mins, secs)
 end
 
--- Main script execution
 local running = false
 local stopUpdateQi = false
 
+-- Modified waitSeconds with timer display and stop check
+local function waitSeconds(seconds)
+    local start = tick()
+    while tick() - start < seconds and running do
+        local elapsed = math.floor(tick() - start)
+        local remaining = math.max(0, seconds - elapsed)
+        timerLabel.Text = "Timer: " .. formatTime(remaining)
+        wait(1)
+    end
+    timerLabel.Text = "Timer: 00:00"
+end
+
 local function runCycle()
-    updateStatus("Running Cycle...")
-    -- 1. Jalankan Reincarnate
+    updateStatus("Reincarnating...")
     local args = {}
     ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("Reincarnate"):FireServer(unpack(args))
 
-    -- 2. Perulangan IncreaseAptitude & Mine (tanpa henti)
     spawn(function()
         while running do
             local args = {}
@@ -109,7 +130,6 @@ local function runCycle()
         end
     end)
 
-    -- 3. UpdateQi setiap 1 detik (dihentikan saat Comprehend)
     stopUpdateQi = false
     spawn(function()
         while running and not stopUpdateQi do
@@ -119,8 +139,6 @@ local function runCycle()
         end
     end)
 
-    -- 4. Tunggu 1 menit, lalu beli item batch 1
-    waitSeconds(60)
     local itemList1 = {
         "Nine Heavens Galaxy Water",
         "Buzhou Divine Flower",
@@ -132,24 +150,21 @@ local function runCycle()
         ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("BuyItem"):FireServer(unpack(args))
     end
 
-    -- 5. Tunggu 30 detik setelah beli item
-    waitSeconds(30)
+    updateStatus("Waiting 1:30")
+    waitSeconds(90)
 
-    -- 6. Ganti map: immortal → chaos
-    local function changeMap(mapName)
-        local args = { [1] = mapName }
-        ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChangeMap"):FireServer(unpack(args))
-    end
-    changeMap("immortal")
-    changeMap("chaos")
+    local args = { [1] = "immortal" }
+    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChangeMap"):FireServer(unpack(args))
 
-    -- 7. Jalankan ChaoticRoad
+    args = { [1] = "chaos" }
+    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChangeMap"):FireServer(unpack(args))
+
+    updateStatus("Running ChaoticRoad")
     ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChaoticRoad"):FireServer(unpack({}))
 
-    -- 8. Tunggu 1 menit sambil updateQi, lalu beli item batch 2
-    local tempStop = stopUpdateQi
-    stopUpdateQi = false
-    waitSeconds(60)
+    updateStatus("Waiting 0:40")
+    waitSeconds(40)
+
     local itemList2 = {
         "Traceless Breeze Lotus",
         "Reincarnation World Destruction Black Lotus",
@@ -159,48 +174,53 @@ local function runCycle()
         local args = { [1] = item }
         ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("BuyItem"):FireServer(unpack(args))
     end
-    stopUpdateQi = tempStop
 
-    -- 9. Kembali ke map immortal
-    changeMap("immortal")
+    args = { [1] = "immortal" }
+    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChangeMap"):FireServer(unpack(args))
 
-    -- 10. Jalankan HiddenRemote
     ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("HiddenRemote"):FireServer(unpack({}))
 
-    -- 11. Tunggu 1 menit
+    updateStatus("Waiting 1:00")
     waitSeconds(60)
 
-    -- 12. Masuk ke ForbiddenZone
+    updateStatus("Entering ForbiddenZone")
     ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ForbiddenZone"):FireServer(unpack({}))
 
-    -- 13. Jalankan Comprehend selama 2 menit (hentikan UpdateQi sementara)
+    updateStatus("Comprehend 2:00")
     stopUpdateQi = true
     local startTime = tick()
-    while tick() - startTime < 120 do
-        ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("Comprehend"):FireServer(unpack({}))
-        wait()
+    while tick() - startTime < 120 and running do
+        local args = {}
+        ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("Comprehend"):FireServer(unpack(args))
+        local remaining = math.max(0,120 - math.floor(tick() - startTime))
+        timerLabel.Text = "Timer: " .. formatTime(remaining)
+        wait(1)
     end
 
-    -- 14. Lanjutkan UpdateQi selama 2 menit
+    updateStatus("UpdateQi 5:00")
     stopUpdateQi = false
-    waitSeconds(120)
-    stopUpdateQi = true -- hentikan sebelum mulai siklus lagi
+    waitSeconds(300)
+
+    stopUpdateQi = true
+    timerLabel.Text = "Timer: 00:00"
 end
 
--- Start Button Click
 startButton.MouseButton1Click:Connect(function()
-    running = true
-    updateStatus("Cycle Started")
-    while running do
-        runCycle()
+    if not running then
+        running = true
+        updateStatus("Cycle Started")
+        spawn(function()
+            while running do
+                runCycle()
+            end
+        end)
     end
 end)
 
--- Stop Button Click
 stopButton.MouseButton1Click:Connect(function()
     running = false
     updateStatus("Cycle Stopped")
+    timerLabel.Text = "Timer: 00:00"
 end)
 
--- Initialize UI
 updateStatus("Idle")
