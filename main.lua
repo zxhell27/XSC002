@@ -1,3 +1,4 @@
+-- Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("User InputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,7 +21,6 @@ mainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
 mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
-mainFrame.BackgroundTransparency = 0.1
 
 -- Make MainFrame draggable
 mainFrame.Active = true
@@ -43,7 +43,7 @@ local minimizeButton = Instance.new("TextButton")
 minimizeButton.Name = "MinimizeButton"
 minimizeButton.Size = UDim2.new(0, 40, 0, 40)
 minimizeButton.Position = UDim2.new(1, -80, 0, 0)
-minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
 minimizeButton.BorderSizePixel = 0
 minimizeButton.Text = "-"
 minimizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
@@ -143,20 +143,6 @@ statusLabel.TextSize = 14
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = mainFrame
 
--- Toggle Button
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(0, 100, 0, 40)
-toggleButton.Position = UDim2.new(0, 10, 0, 10)
-toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-toggleButton.BorderSizePixel = 0
-toggleButton.Text = "Open Menu"
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.Font = Enum.Font.SourceSansBold
-toggleButton.TextSize = 14
-toggleButton.Visible = false
-toggleButton.Parent = screenGui
-
 -- Function to update status
 local function updateStatus(text)
     statusLabel.Text = "Status: " .. text
@@ -164,35 +150,39 @@ end
 
 -- Function to minimize the UI
 local function minimizeUI()
-    mainFrame.Visible = false
-    toggleButton.Visible = true
+    mainFrame.Size = UDim2.new(0, 300, 0, 40)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    titleLabel.Visible = true
+    minimizeButton.Visible = false
+    closeButton.Visible = false
 end
 
 -- Function to restore the UI
 local function restoreUI()
-    mainFrame.Visible = true
-    toggleButton.Visible = false
+    mainFrame.Size = UDim2.new(0, 300, 0, 400)
+    titleLabel.Visible = true
+    minimizeButton.Visible = true
+    closeButton.Visible = true
 end
 
--- Connect minimize button
-minimizeButton.MouseButton1Click:Connect(minimizeUI)
-
--- Connect close button
-closeButton.MouseButton1Click:Connect(function()
-    mainFrame.Visible = false
-    toggleButton.Visible = true
+-- Minimize Button Functionality
+minimizeButton.MouseButton1Click:Connect(function()
+    minimizeUI()
 end)
 
--- Connect toggle button
-toggleButton.MouseButton1Click:Connect(restoreUI)
+-- Close Button Functionality
+closeButton.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    -- Optionally, you can add functionality to show a small pop-up here
+end)
 
--- Function to wait for a certain number of seconds
-local function waitSeconds(seconds)
-    local start = tick()
-    while tick() - start < seconds do
-        wait()
+-- Restore UI when clicked
+mainFrame.MouseButton1Click:Connect(function()
+    if not mainFrame.Visible then
+        restoreUI()
     end
-end
+end)
 
 -- Main script execution
 local running = false
