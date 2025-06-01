@@ -124,19 +124,31 @@ local function formatTime(seconds)
     return string.format("%02d:%02d", mins, secs)
 end
 
+-- <<<< PERBAIKAN UTAMA: Definisi fungsi updateStatus >>>>
+local function updateStatus(newStatus)
+    if statusLabel then
+        statusLabel.Text = "Status: " .. tostring(newStatus)
+        -- print("Status Updated: " .. tostring(newStatus)) -- Uncomment untuk debugging di console
+    else
+        warn("Error: statusLabel is nil. Cannot update status to: " .. tostring(newStatus))
+    end
+end
+
 local running = false
-local stopUpdateQi = false
+local stopUpdateQi = false -- Flag untuk mengontrol loop UpdateQi secara spesifik
 
 -- Updated waitSeconds with timer and stop check
-local function waitSeconds(seconds)
-    local start = tick()
-    while tick() - start < seconds and running do
-        local elapsed = math.floor(tick() - start)
-        local remaining = math.max(0, seconds - elapsed)
+local function waitSeconds(secondsToWait) -- Mengganti nama parameter agar lebih jelas
+    local startTime = tick()
+    while tick() - startTime < secondsToWait and running do
+        local elapsed = math.floor(tick() - startTime)
+        local remaining = math.max(0, secondsToWait - elapsed)
         timerLabel.Text = "Timer: "..formatTime(remaining)
-        wait(1)
+        wait(1) -- Tunggu 1 detik
     end
-    timerLabel.Text = "Timer: 00:00"
+    if running then -- Hanya reset timer jika siklus masih berjalan dan waktu tunggu selesai
+        timerLabel.Text = "Timer: 00:00"
+    end
 end
 
 local function safeNumberInput(textBox, default)
@@ -147,25 +159,90 @@ local function safeNumberInput(textBox, default)
     return num
 end
 
+-- Fungsi untuk melakukan satu siklus penuh
 local function runCycle()
-    updateStatus("Reincarnating...")
-    local args = {}
-    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("Reincarnate"):FireServer(unpack(args))
+    -- Menggunakan pcall untuk menangani potensi error saat FireServer
+    local function safeFireServer(remoteEvent, ...)
+        local success, err = pcall(function()
+            remoteEvent:FireServer(...)
+        end)
+        if not success then
+            warn("Error firing RemoteEvent "..remoteEvent.Name..":", err)
+            updateStatus("Error: "..remoteEvent.Name)
+            running = false -- Hentikan siklus jika ada error kritis
+        end
+        return success
+    end
+    
+    -- Pastikan RemoteEvents folder ada
+    local remoteEventsFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
+    if not remoteEventsFolder then
+        updateStatus("Error: RemoteEvents folder missing!")
+        running = false
+        return
+    end
 
-    spawn(function()
+    -- Fungsi helper untuk mendapatkan RemoteEvent dengan aman
+    local function getRemote(name)
+        local event = remoteEventsFolder:FindFirstChild(name)
+        if not event then
+            warn("RemoteEvent not found:", name)
+            updateStatus("Error: Missing event "..name)
+            running = false -- Hentikan jika event penting tidak ada
+        end
+        return event
+    end
+    
+    local areaEventsFolder = remoteEventsFolder:FindFirstChild("AreaEvents")
+    if not areaEventsFolder then
+        updateStatus("Error: AreaEvents folder missing!")
+        running = false
+        return
+    end
+    
+    local function getAreaRemote(name)
+        local event = areaEventsFolder:FindFirstChild(name)
+        if not event then
+            warn("AreaRemoteEvent not found:", name)
+            updateStatus("Error: Missing area event "..name)
+            running = false
+        end
+        return event
+    end
+
+    updateStatus("Reincarnating...")
+    local reincarnateEvent = getRemote("Reincarnate")
+    if not reincarnateEvent or not safeFireServer(reincarnateEvent) then return end
+
+    -- Spawn thread untuk IncreaseAptitude dan Mine
+    local aptitudeMineThread
+    aptitudeMineThread = spawn(function()
+        local increaseAptitudeEvent = getRemote("IncreaseAptitude")
+        local mineEvent = getRemote("Mine")
+        if not increaseAptitudeEvent or not mineEvent then 
+            running = false -- Hentikan jika event penting tidak ada
+            return -- Keluar dari thread ini jika event tidak ditemukan
+        end
+
         while running do
-            local args = {}
-            ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("IncreaseAptitude"):FireServer(unpack(args))
-            ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("Mine"):FireServer(unpack(args))
-            wait()
+            if not safeFireServer(increaseAptitudeEvent) then break end
+            if not safeFireServer(mineEvent) then break end
+            wait() -- Beri sedikit jeda agar tidak membebani server
         end
     end)
 
-    stopUpdateQi = false
-    spawn(function()
+    -- Spawn thread untuk UpdateQi
+    stopUpdateQi = false -- Reset flag sebelum memulai loop baru
+    local updateQiThread
+    updateQiThread = spawn(function()
+        local updateQiEvent = getRemote("UpdateQi")
+        if not updateQiEvent then 
+            running = false
+            return 
+        end
+        
         while running and not stopUpdateQi do
-            local args = {}
-            ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("UpdateQi"):FireServer(unpack(args))
+            if not safeFireServer(updateQiEvent) then break end
             wait(1)
         end
     end)
@@ -176,69 +253,92 @@ local function runCycle()
         "Fusang Divine Tree",
         "Calm Cultivation Mat"
     }
+    local buyItemEvent = getRemote("BuyItem")
+    if not buyItemEvent then return end
     for _, item in ipairs(itemList1) do
-        local args = { [1] = item }
-        ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("BuyItem"):FireServer(unpack(args))
+        if not running then return end -- Periksa flag running sebelum setiap aksi
+        if not safeFireServer(buyItemEvent, item) then return end
     end
 
     local waitAfterBatch1 = safeNumberInput(waitAfterBatch1Input, 90)
-    updateStatus("Waiting " .. waitAfterBatch1 .. " seconds after Batch 1")
+    updateStatus("Waiting " .. waitAfterBatch1 .. "s after Batch 1")
     waitSeconds(waitAfterBatch1)
+    if not running then return end
 
-    local args = { [1] = "immortal" }
-    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChangeMap"):FireServer(unpack(args))
-
-    args = { [1] = "chaos" }
-    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChangeMap"):FireServer(unpack(args))
+    local changeMapEvent = getAreaRemote("ChangeMap")
+    if not changeMapEvent then return end
+    if not safeFireServer(changeMapEvent, "immortal") then return end
+    if not running then return end
+    if not safeFireServer(changeMapEvent, "chaos") then return end
+    if not running then return end
 
     updateStatus("Running ChaoticRoad")
-    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChaoticRoad"):FireServer(unpack({}))
+    local chaoticRoadEvent = getAreaRemote("ChaoticRoad")
+    if not chaoticRoadEvent or not safeFireServer(chaoticRoadEvent) then return end
+    if not running then return end
 
     local waitAfterChaoticRoad = safeNumberInput(waitAfterChaoticRoadInput, 40)
-    updateStatus("Waiting " .. waitAfterChaoticRoad .. " seconds after ChaoticRoad")
+    updateStatus("Waiting " .. waitAfterChaoticRoad .. "s after ChaoticRoad")
     waitSeconds(waitAfterChaoticRoad)
+    if not running then return end
 
     local itemList2 = {
         "Traceless Breeze Lotus",
         "Reincarnation World Destruction Black Lotus",
         "Ten Thousand Bodhi Tree"
     }
+    -- buyItemEvent sudah didapatkan sebelumnya
     for _, item in ipairs(itemList2) do
-        local args = { [1] = item }
-        ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("BuyItem"):FireServer(unpack(args))
+        if not running then return end
+        if not safeFireServer(buyItemEvent, item) then return end
     end
+    if not running then return end
+    
+    if not safeFireServer(changeMapEvent, "immortal") then return end
+    if not running then return end
 
-    args = { [1] = "immortal" }
-    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ChangeMap"):FireServer(unpack(args))
-
-    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("HiddenRemote"):FireServer(unpack({}))
+    local hiddenRemoteEvent = getAreaRemote("HiddenRemote")
+    if not hiddenRemoteEvent or not safeFireServer(hiddenRemoteEvent) then return end
+    if not running then return end
 
     local waitBeforeForbidden = safeNumberInput(waitBeforeForbiddenInput, 60)
-    updateStatus("Waiting " .. waitBeforeForbidden .. " seconds before ForbiddenZone")
+    updateStatus("Waiting " .. waitBeforeForbidden .. "s before ForbiddenZone")
     waitSeconds(waitBeforeForbidden)
+    if not running then return end
 
     updateStatus("Entering ForbiddenZone")
-    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AreaEvents"):WaitForChild("ForbiddenZone"):FireServer(unpack({}))
+    local forbiddenZoneEvent = getAreaRemote("ForbiddenZone")
+    if not forbiddenZoneEvent or not safeFireServer(forbiddenZoneEvent) then return end
+    if not running then return end
 
     local comprehendDuration = safeNumberInput(comprehendDurationInput, 120)
-    updateStatus("Comprehending " .. comprehendDuration .. " seconds")
-    stopUpdateQi = true
-    local startTime = tick()
-    while tick() - startTime < comprehendDuration and running do
-        local args = {}
-        ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("Comprehend"):FireServer(unpack(args))
-        local remaining = math.max(0, comprehendDuration - math.floor(tick() - startTime))
+    updateStatus("Comprehending " .. comprehendDuration .. "s")
+    stopUpdateQi = true -- Hentikan UpdateQi selama comprehend
+    
+    local comprehendStartTime = tick()
+    local comprehendEvent = getRemote("Comprehend")
+    if not comprehendEvent then return end
+
+    while tick() - comprehendStartTime < comprehendDuration and running do
+        if not safeFireServer(comprehendEvent) then break end
+        local elapsed = math.floor(tick() - comprehendStartTime)
+        local remaining = math.max(0, comprehendDuration - elapsed)
         timerLabel.Text = "Timer: " .. formatTime(remaining)
         wait(1)
     end
+    if not running then return end
+    timerLabel.Text = "Timer: 00:00" -- Reset timer setelah comprehend selesai atau dihentikan
 
     local updateQiDuration = safeNumberInput(updateQiDurationInput, 300)
-    updateStatus("UpdateQi for " .. updateQiDuration .. " seconds")
-    stopUpdateQi = false
-    waitSeconds(updateQiDuration)
+    updateStatus("UpdateQi for " .. updateQiDuration .. "s")
+    stopUpdateQi = false -- Izinkan UpdateQi berjalan lagi
+    -- Loop UpdateQi utama akan mengambil alih jika masih berjalan, atau kita tunggu di sini
+    waitSeconds(updateQiDuration) 
+    if not running then return end
 
-    stopUpdateQi = true
-    timerLabel.Text = "Timer: 00:00"
+    stopUpdateQi = true -- Pastikan UpdateQi berhenti di akhir siklus jika belum
+    timerLabel.Text = "Timer: 00:00" -- Final reset timer
+    updateStatus("Cycle finished. Restarting if still running...")
 end
 
 -- Buttons
@@ -246,18 +346,29 @@ startButton.MouseButton1Click:Connect(function()
     if not running then
         running = true
         updateStatus("Cycle Started")
-        spawn(function()
+        -- Menggunakan coroutine.wrap untuk penanganan error yang lebih baik pada thread utama siklus
+        local cycleCoroutine = coroutine.wrap(function()
             while running do
                 runCycle()
+                if running then -- Jika masih running, beri jeda sebelum siklus berikutnya
+                    wait(1) 
+                end
             end
+            updateStatus("Cycle Stopped Internally") -- Jika loop selesai karena running = false
+            timerLabel.Text = "Timer: 00:00"
         end)
+        cycleCoroutine() -- Jalankan coroutine
     end
 end)
 
 stopButton.MouseButton1Click:Connect(function()
-    running = false
-    updateStatus("Cycle Stopped")
-    timerLabel.Text = "Timer: 00:00"
+    if running then
+        running = false
+        updateStatus("Cycle Stopping...") -- Beri tahu pengguna bahwa sedang proses berhenti
+        -- Tidak perlu secara eksplisit menghentikan thread spawn karena mereka memeriksa flag `running`
+        -- Namun, pastikan semua waitSeconds dan loop internal menghormati flag `running`
+    end
+    -- Status akan diupdate menjadi "Cycle Stopped" oleh loop utama atau setelah waitSeconds selesai
 end)
 
 -- Initialize UI
