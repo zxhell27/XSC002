@@ -3,48 +3,29 @@ local ScreenGui = Instance.new("ScreenGui")
 local Frame = Instance.new("Frame")
 local StartButton = Instance.new("TextButton")
 local StatusLabel = Instance.new("TextLabel")
-local TitleLabel = Instance.new("TextLabel")
-local MinimizeButton = Instance.new("TextButton")
 
 -- // Parent UI ke player //
 ScreenGui.Parent = game:GetService("CoreGui")
 Frame.Parent = ScreenGui
 StartButton.Parent = Frame
 StatusLabel.Parent = Frame
-TitleLabel.Parent = Frame
-MinimizeButton.Parent = Frame
 
 -- // Desain UI //
-Frame.Size = UDim2.new(0, 200, 0, 150)
+Frame.Size = UDim2.new(0, 200, 0, 120)
 Frame.Position = UDim2.new(0, 10, 0, 10)
-Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Frame.Active = true
-Frame.Draggable = true
-
-TitleLabel.Size = UDim2.new(1, 0, 0, 30)
-TitleLabel.Position = UDim2.new(0, 0, 0, 0)
-TitleLabel.Text = "Zedlist"
-TitleLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextScaled = true
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 
 StartButton.Size = UDim2.new(0, 180, 0, 40)
-StartButton.Position = UDim2.new(0, 10, 0, 40)
+StartButton.Position = UDim2.new(0, 10, 0, 10)
 StartButton.Text = "Start Script"
 StartButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 
 StatusLabel.Size = UDim2.new(0, 180, 0, 40)
-StatusLabel.Position = UDim2.new(0, 10, 0, 90)
+StatusLabel.Position = UDim2.new(0, 10, 0, 60)
 StatusLabel.Text = "Status: Idle"
 StatusLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
-MinimizeButton.Position = UDim2.new(1, -40, 0, 0)
-MinimizeButton.Text = "-"
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-MinimizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
 
 -- // Fungsi tunggu //
 local function waitSeconds(sec)
@@ -142,9 +123,4 @@ StartButton.MouseButton1Click:Connect(function()
 	end)
 	StartButton.Text = "Running..."
 	StartButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
-end)
-
--- // Fungsi untuk meminimalkan UI //
-MinimizeButton.MouseButton1Click:Connect(function()
-	Frame.Visible = not Frame.Visible
 end)
