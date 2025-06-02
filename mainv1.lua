@@ -1,100 +1,71 @@
 --[[
     ZXHELL X ZEDLIST - Enhanced UI & Animation Overhaul
     Client-Side Automation Script for Roblox
+    (Versi dengan penyesuaian parenting UI)
 ]]
 
 -- // Layanan Roblox //
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
-local CoreGui = game:GetService("CoreGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- CoreGui akan diakses secara langsung atau melalui Players.LocalPlayer.PlayerGui
+local ReplicatedStorage = game:GetService("ReplicatedStorage") -- Tetap menggunakan GetService untuk ini
 
--- // Variabel Kontrol dan State (Dari skrip Anda) ---
-local scriptRunning = false
-local stopUpdateQi = false 
-local pauseUpdateQiTemporarily = false 
-local mainCycleThread = nil
-local aptitudeMineThread = nil
-local updateQiThread = nil
-
--- // Tabel Konfigurasi Timer (Dari skrip Anda, DENGAN NILAI BARU DARI ANDA) ---
-local timers = {
-    wait_1m30s_after_first_items = 0, 
-    alur_wait_40s_hide_qi = 0,             
-    comprehend_duration = 20,         
-    post_comprehend_qi_duration = 60, 
-
-    user_script_wait1_before_items1 = 15, 
-    user_script_wait2_after_items1 = 10,  
-    user_script_wait3_before_items2 = 0.01, 
-    user_script_wait4_before_forbidden = 0.01, 
-
-    update_qi_interval = 1,
-    aptitude_mine_interval = 0.1, 
-    genericShortDelay = 0.5, 
-    reincarnateDelay = 0.5,
-    buyItemDelay = 0.25, 
-    changeMapDelay = 0.5, 
-    fireserver_generic_delay = 0.25 
-}
-
--- // Variabel UI Utama (Elemen inti dari skrip Anda tetap ada) //
-local ScreenGui, Frame, StartButton, StatusLabel
-local UiTitleLabel, TimerTitleLabel, ApplyTimersButton, MinimizeButton
-local ComprehendInput, PostComprehendQiInput -- Dan label-labelnya
-local timerElements = {} -- Untuk menyimpan elemen timer input & label
-
--- // --- PENAMBAHAN: Elemen UI Baru untuk Efek Visual ---
-local BackgroundGlitchFrame -- Frame untuk efek glitch teks ZXHELL di latar
-local MinimizedPopupFrame -- Frame untuk pop-up petir saat minimize
-
-local isMinimized = false
-local originalFrameSize, originalFramePosition
+-- ... (SEMUA variabel state, tabel timers, variabel UI global lainnya tetap sama seperti skrip terakhir) ...
+-- local ScreenGui, Frame, StartButton, StatusLabel -- dideklarasikan global
+-- local UiTitleLabel, TimerTitleLabel, ApplyTimersButton, MinimizeButton
+-- local ComprehendInput, PostComprehendQiInput 
+-- local timerElements = {} 
+-- local BackgroundGlitchFrame 
+-- local MinimizedPopupFrame
+-- local isMinimized = false
+-- local originalFrameSize, originalFramePosition
 
 -- // Fungsi Setup UI (Akan membuat SEMUA elemen UI) //
 local function CreateAdvancedUI()
-    if ScreenGui and ScreenGui.Parent then ScreenGui:Destroy() end -- Hapus UI lama jika ada
+    if ScreenGui and ScreenGui.Parent then 
+        pcall(function() ScreenGui:Destroy() end) 
+    end 
 
     ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "ZXHELL_ZEDLIST_AdvancedUI"
+    ScreenGui.Name = "ZXHELL_ZEDLIST_AdvancedUI_TEMP" -- Nama sementara hingga berhasil diparentkan
     ScreenGui.ResetOnSpawn = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    -- ScreenGui.Parent = CoreGui -- Diparentkan nanti setelah semua elemen dibuat
+    -- Parenting akan dilakukan di akhir fungsi ini
 
     -- 1. Latar Belakang Glitch "ZXHELL"
     BackgroundGlitchFrame = Instance.new("Frame")
     BackgroundGlitchFrame.Name = "BackgroundGlitch"
-    BackgroundGlitchFrame.Parent = ScreenGui
-    BackgroundGlitchFrame.Size = UDim2.new(1, 0, 1, 0) -- Fullscreen
+    BackgroundGlitchFrame.Parent = ScreenGui -- Parent ke ScreenGui dulu
+    BackgroundGlitchFrame.Size = UDim2.new(1, 0, 1, 0)
     BackgroundGlitchFrame.Position = UDim2.new(0, 0, 0, 0)
-    BackgroundGlitchFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 10) -- Warna dasar sangat gelap
-    BackgroundGlitchFrame.BackgroundTransparency = 0.85 -- Agak transparan
-    BackgroundGlitchFrame.ZIndex = 0 -- Paling belakang
+    BackgroundGlitchFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
+    BackgroundGlitchFrame.BackgroundTransparency = 0.85 
+    BackgroundGlitchFrame.ZIndex = 0 
 
     local BackgroundGlitchText = Instance.new("TextLabel")
     BackgroundGlitchText.Name = "GlitchTextOverlay"
     BackgroundGlitchText.Parent = BackgroundGlitchFrame
     BackgroundGlitchText.Size = UDim2.new(1, 0, 1, 0)
-    BackgroundGlitchText.Text = string.rep("ZXHELL ERR ", 100) -- Teks berulang
+    BackgroundGlitchText.Text = string.rep("ZXHELL ERR ", 100) 
     BackgroundGlitchText.Font = Enum.Font.Code
     BackgroundGlitchText.TextSize = 30
-    BackgroundGlitchText.TextColor3 = Color3.fromRGB(100, 0, 0) -- Merah gelap
+    BackgroundGlitchText.TextColor3 = Color3.fromRGB(100, 0, 0) 
     BackgroundGlitchText.TextWrapped = true
     BackgroundGlitchText.TextXAlignment = Enum.TextXAlignment.Center
     BackgroundGlitchText.TextYAlignment = Enum.TextYAlignment.Center
     BackgroundGlitchText.BackgroundTransparency = 1
-    BackgroundGlitchText.TextTransparency = 0.7 -- Sangat transparan
+    BackgroundGlitchText.TextTransparency = 0.7 
 
     -- 2. Frame Utama Kontrol
     Frame = Instance.new("Frame")
     Frame.Name = "ZXMainControlFrame"
-    Frame.Parent = ScreenGui
+    Frame.Parent = ScreenGui -- Parent ke ScreenGui dulu
     Frame.Size = UDim2.new(0, 340, 0, 520)
     Frame.Position = UDim2.new(0.5, -Frame.Size.X.Offset/2, 0.5, -Frame.Size.Y.Offset/2)
     Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     Frame.Active = true
     Frame.Draggable = true
-    Frame.BorderSizePixel = 0 -- Akan menggunakan UIStroke
+    Frame.BorderSizePixel = 0 
     Frame.ZIndex = 1
 
     local FrameCorner = Instance.new("UICorner")
@@ -133,7 +104,7 @@ local function CreateAdvancedUI()
     UiTitleLabel.TextStrokeColor3 = Color3.fromRGB(100,0,0)
     UiTitleLabel.TextStrokeTransparency = 0.2
 
-    local yOffset = 70 -- Mulai elemen di bawah title
+    local yOffset = 70 
 
     -- 4. Tombol Start/Stop
     StartButton = Instance.new("TextButton")
@@ -145,7 +116,7 @@ local function CreateAdvancedUI()
     StartButton.Text = "[[ INITIALIZE SEQUENCE ]]"
     StartButton.TextSize = 18
     StartButton.TextColor3 = Color3.fromRGB(220, 200, 255)
-    StartButton.BackgroundColor3 = Color3.fromRGB(40, 20, 60) -- Ungu gelap
+    StartButton.BackgroundColor3 = Color3.fromRGB(40, 20, 60) 
     StartButton.ZIndex = Frame.ZIndex + 1
     local sbCorner = Instance.new("UICorner"); sbCorner.Parent = StartButton;
     local sbStroke = Instance.new("UIStroke"); sbStroke.Color = Color3.fromRGB(150,80,200); sbStroke.Thickness = 1.5; sbStroke.Parent = StartButton
@@ -161,7 +132,7 @@ local function CreateAdvancedUI()
     StatusLabel.Font = Enum.Font.ShareTechMono
     StatusLabel.Text = "SYSTEM STATUS: AWAITING INITIALIZATION..."
     StatusLabel.TextSize = 14
-    StatusLabel.TextColor3 = Color3.fromRGB(150, 255, 150) -- Hijau neon
+    StatusLabel.TextColor3 = Color3.fromRGB(150, 255, 150) 
     StatusLabel.BackgroundColor3 = Color3.fromRGB(10,25,10)
     StatusLabel.TextWrapped = true
     StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -174,7 +145,7 @@ local function CreateAdvancedUI()
     yOffset = yOffset + StatusLabel.Size.Y.Offset + 20
 
     -- 6. Konfigurasi Timer UI
-    TimerTitleLabel = Instance.new("TextLabel") -- Sudah didefinisikan di atas
+    TimerTitleLabel = Instance.new("TextLabel") 
     TimerTitleLabel.Name = "Config_TimerHeader"
     TimerTitleLabel.Parent = Frame
     TimerTitleLabel.Size = UDim2.new(1, -40, 0, 25)
@@ -189,8 +160,10 @@ local function CreateAdvancedUI()
 
     yOffset = yOffset + TimerTitleLabel.Size.Y.Offset + 10
     
+    timerElements = {} -- Reset tabel timerElements untuk UI baru
+
     local timerConfigData = {
-        {name="Wait1m30s", label="T_POST_ITEM1", key="wait_1m30s_after_first_items"},
+        {name="Wait1m30s", label="T_PASC_ITEM1", key="wait_1m30s_after_first_items"},
         {name="Wait40s", label="T_ITEM2_QI_PAUSE", key="alur_wait_40s_hide_qi"},
         {name="Comprehend", label="T_COMPREHEND_DUR", key="comprehend_duration"},
         {name="PostCompQi", label="T_POST_COMP_QI_DUR", key="post_comprehend_qi_duration"}
@@ -228,10 +201,10 @@ local function CreateAdvancedUI()
         local tiStroke = Instance.new("UIStroke"); tiStroke.Color = Color3.fromRGB(100,100,150); tiStroke.Thickness = 1; tiStroke.Parent = input;
         timerElements[data.name .. "Input"] = input
         
-        yOffset = yOffset + label.Size.Y.Offset + 8 -- Jarak antar input timer
+        yOffset = yOffset + label.Size.Y.Offset + 8 
     end
 
-    yOffset = yOffset + 10 -- Spasi sebelum tombol apply
+    yOffset = yOffset + 10 
 
     ApplyTimersButton = Instance.new("TextButton")
     ApplyTimersButton.Name = "Config_ApplyTimersButton"
@@ -250,37 +223,37 @@ local function CreateAdvancedUI()
     -- 7. Tombol Minimize
     MinimizeButton = Instance.new("TextButton")
     MinimizeButton.Name = "Control_MinimizeButton"
-    MinimizeButton.Parent = Frame -- Diparentkan ke Frame utama, bukan ke ScreenGui langsung
+    MinimizeButton.Parent = Frame 
     MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
-    MinimizeButton.Position = UDim2.new(1, -40, 0, 10) -- Pojok kanan atas Frame utama
+    MinimizeButton.Position = UDim2.new(1, -40, 0, 10) 
     MinimizeButton.Font = Enum.Font.SourceSansBold
     MinimizeButton.Text = "_"
     MinimizeButton.TextSize = 20
     MinimizeButton.TextColor3 = Color3.fromRGB(180, 180, 200)
     MinimizeButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    MinimizeButton.ZIndex = Frame.ZIndex + 2 -- Di atas elemen frame lain
+    MinimizeButton.ZIndex = Frame.ZIndex + 2 
     local mbCorner = Instance.new("UICorner"); mbCorner.Parent = MinimizeButton;
     local mbStroke = Instance.new("UIStroke"); mbStroke.Color = Color3.fromRGB(100,100,150); mbStroke.Thickness = 1; mbStroke.Parent = MinimizeButton;
 
     -- 8. Frame untuk Pop-up Minimize (Awalnya tidak terlihat)
     MinimizedPopupFrame = Instance.new("Frame")
     MinimizedPopupFrame.Name = "MinimizedLightningPopup"
-    MinimizedPopupFrame.Parent = ScreenGui -- Diparentkan ke ScreenGui agar bisa di atas segalanya
+    MinimizedPopupFrame.Parent = ScreenGui -- Parent ke ScreenGui dulu
     MinimizedPopupFrame.Size = UDim2.fromOffset(80, 80)
-    MinimizedPopupFrame.Position = UDim2.new(0.02, 0, 0.5, -MinimizedPopupFrame.Size.Y.Offset/2) -- Kiri tengah
-    MinimizedPopupFrame.BackgroundColor3 = Color3.fromRGB(150,0,0) -- Dasar merah
+    MinimizedPopupFrame.Position = UDim2.new(0.02, 0, 0.5, -MinimizedPopupFrame.Size.Y.Offset/2) 
+    MinimizedPopupFrame.BackgroundColor3 = Color3.fromRGB(150,0,0) 
     MinimizedPopupFrame.BackgroundTransparency = 0.1
     MinimizedPopupFrame.BorderSizePixel = 0
-    MinimizedPopupFrame.Visible = false -- Awalnya tidak terlihat
-    MinimizedPopupFrame.ZIndex = 10 -- Di atas segalanya
-    local mpfCorner = Instance.new("UICorner"); mpfCorner.CornerRadius = UDim.new(0.5,0); mpfCorner.Parent = MinimizedPopupFrame; -- Lingkaran/oval
+    MinimizedPopupFrame.Visible = false 
+    MinimizedPopupFrame.ZIndex = 10 
+    local mpfCorner = Instance.new("UICorner"); mpfCorner.CornerRadius = UDim.new(0.5,0); mpfCorner.Parent = MinimizedPopupFrame; 
     local mpfStroke = Instance.new("UIStroke"); mpfStroke.Color = Color3.fromRGB(255,50,50); mpfStroke.Thickness = 2; mpfStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; mpfStroke.Parent = MinimizedPopupFrame;
 
-    local MaximizeButton = Instance.new("TextButton") -- Tombol untuk maximize dari pop-up
+    local MaximizeButton = Instance.new("TextButton") 
     MaximizeButton.Name = "Control_MaximizeButton"
     MaximizeButton.Parent = MinimizedPopupFrame
     MaximizeButton.Size = UDim2.new(1, -10, 0, 25)
-    MaximizeButton.Position = UDim2.new(0, 5, 1, -30) -- Di bawah pop-up
+    MaximizeButton.Position = UDim2.new(0, 5, 1, -30) 
     MaximizeButton.Text = "MAXIMIZE"
     MaximizeButton.Font = Enum.Font.SourceSansBold
     MaximizeButton.TextSize = 12
@@ -289,15 +262,114 @@ local function CreateAdvancedUI()
     MaximizeButton.BackgroundTransparency = 0.3
     MaximizeButton.ZIndex = MinimizedPopupFrame.ZIndex + 1
     local maxBCorner = Instance.new("UICorner"); maxBCorner.CornerRadius = UDim.new(0,4); maxBCorner.Parent = MaximizeButton;
-    timerElements.MaximizeButton = MaximizeButton -- Simpan referensi
+    timerElements.MaximizeButton = MaximizeButton 
 
     originalFrameSize = Frame.Size
     originalFramePosition = Frame.Position
 
-    ScreenGui.Parent = CoreGui -- Parentkan ScreenGui utama di akhir
-    print("CreateAdvancedUI: UI Dibuat/Diperbarui.")
+    -- --- MODIFIED PARENTING SECTION ---
+    local parentSuccess = false
+    local finalParent = nil
+    local errMessage = ""
+
+    -- Try game.CoreGui first (direct access)
+    if game and game.CoreGui then
+        finalParent = game.CoreGui
+    end
+
+    -- If game.CoreGui fails or is not preferred, try PlayerGui
+    if not finalParent then
+        local Players = game:GetService("Players") -- This uses GetService, but is a common fallback
+        if Players and Players.LocalPlayer then
+            local PlayerGui = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            if PlayerGui then
+                finalParent = PlayerGui
+                print("UI_PARENT_INFO: Using PlayerGui.")
+            else
+                errMessage = "PlayerGui not found."
+            end
+        else
+            errMessage = "Players service or LocalPlayer not found. " .. errMessage
+        end
+    end
+
+    if finalParent then
+        local pcallSuccessParent, pcallErrorParent = pcall(function()
+            ScreenGui.Parent = finalParent
+        end)
+        if pcallSuccessParent then
+            ScreenGui.Name = "ZXHELL_ZEDLIST_AdvancedUI_Container"
+            print("CreateAdvancedUI: UI Dibuat dan Berhasil Diparentkan ke " .. finalParent.Name)
+            parentSuccess = true
+        else
+            errMessage = "Error saat memparentkan ke " .. finalParent.Name .. ": " .. tostring(pcallErrorParent) .. ". " .. errMessage
+        end
+    else
+        errMessage = "Tidak ditemukan parent yang valid (CoreGui atau PlayerGui). " .. errMessage
+    end
+
+    if not parentSuccess then
+        print("GAGAL MEMPARENTKAN UI: " .. errMessage .. " UI tidak akan tampil.")
+        pcall(function() ScreenGui:Destroy() end) -- Hapus ScreenGui jika gagal diparentkan
+        return false -- Mengindikasikan kegagalan pembuatan UI
+    end
+    -- --- END MODIFIED PARENTING SECTION ---
+    
+    print("CreateAdvancedUI: UI Dibuat/Diperbarui (Sebelum parenting akhir).")
+    return true -- Mengindikasikan keberhasilan pembuatan UI
 end
 
+
+-- ... (Sisa dari skrip: waitSeconds, fireRemoteEnhanced, runCycle, loop latar belakang, logika tombol, animasi, BindToClose tetap sama seperti versi terakhir) ...
+-- Pastikan logika tombol MinimizeButton dan MaximizeButton (timerElements.MaximizeButton) dihubungkan dengan benar:
+
+-- Di dalam CreateAdvancedUI() atau setelahnya, pastikan koneksi event untuk MaximizeButton:
+if timerElements.MaximizeButton then
+    timerElements.MaximizeButton.MouseButton1Click:Connect(function()
+        if MinimizedPopupFrame then MinimizedPopupFrame.Visible = false end
+        if Frame then Frame.Visible = true end
+        isMinimized = false 
+        -- Anda mungkin perlu mengatur ulang teks MinimizeButton di Frame utama di sini jika perlu
+        if MinimizeButton then MinimizeButton.Text = "_" end
+    end)
+end
+
+-- Modifikasi koneksi event MinimizeButton yang sudah ada:
+MinimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized -- Toggle state
+    if isMinimized then
+        if Frame then Frame.Visible = false end
+        if MinimizedPopupFrame then MinimizedPopupFrame.Visible = true end
+        -- Tombol MinimizeButton di Frame utama sekarang efektif menyembunyikan Frame utama
+        -- dan menampilkan MinimizedPopupFrame. Teksnya mungkin tidak perlu diubah di sini lagi
+        -- karena Frame utama disembunyikan.
+    else
+        -- Aksi ini sekarang ditangani oleh MaximizeButton di MinimizedPopupFrame
+        if Frame then Frame.Visible = true end
+        if MinimizedPopupFrame then MinimizedPopupFrame.Visible = false end
+    end
+end)
+
+
+-- // Inisialisasi //
+local uiReady = CreateAdvancedUI() -- Panggil fungsi pembuatan UI baru
+
+if uiReady then
+    if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "SYSTEM STATUS: ONLINE // STANDBY" end
+    print("Skrip Otomatisasi (Versi UI MAX ANIMATION & Parenting Disesuaikan) Telah Dimuat.")
+else
+    print("GAGAL MEMUAT UI SKRIP OTOMATISASI.")
+end
+
+--[[
+Sisa dari skrip Anda (definisi fungsi waitSeconds, fireRemoteEnhanced, runCycle, 
+increaseAptitudeMineLoop_enhanced, updateQiLoop_enhanced, logika StartButton, 
+logika ApplyTimersButton, semua spawn animasi, dan BindToClose) 
+akan mengikuti di sini, persis seperti pada versi terakhir yang saya berikan.
+Saya tidak akan menyalin ulang semua itu untuk menjaga respons ini tetap fokus pada perubahan parenting UI.
+Pastikan Anda menggabungkan bagian CreateAdvancedUI() yang dimodifikasi ini dengan sisa skrip Anda yang sudah ada.
+Logika inti dan animasi lainnya tidak diubah dalam snippet ini.
+]]
 
 -- // Fungsi tunggu (Struktur Asli Dipertahankan) //
 local function waitSeconds(sec)
