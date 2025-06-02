@@ -14,14 +14,14 @@ local updateQiThread = nil
 
 -- --- Tabel Konfigurasi Timer (Dari skrip Anda, dengan penyesuaian) ---
 local timers = {
-    wait_1m30s_after_first_items = 90, 
-    alur_wait_40s_hide_qi = 40,             
-    comprehend_duration = 120,         
-    post_comprehend_qi_duration = 120, 
+    wait_1m30s_after_first_items = 0, 
+    alur_wait_40s_hide_qi = 0,             
+    comprehend_duration = 20,         
+    post_comprehend_qi_duration = 60, 
 
-    user_script_wait1_before_items1 = 60, 
-    user_script_wait2_after_items1 = 30,  
-    user_script_wait3_before_items2 = 60, 
+    user_script_wait1_before_items1 = 15, 
+    user_script_wait2_after_items1 = 10,  
+    user_script_wait3_before_items2 = 0.01, 
     user_script_wait4_before_forbidden = 0.01, -- Ditiadakan di logika, tapi variabel bisa tetap ada
 
     update_qi_interval = 1,
