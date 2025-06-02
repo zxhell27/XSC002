@@ -5,12 +5,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui") -- Menggunakan CoreGui untuk stabilitas di eksekutor
 
 -- // UI ELEMENTS //
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KultivasiUI_ZX"
+ScreenGui.Name = "KultivasiUI_ZX_v5"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 ScreenGui.ResetOnSpawn = false
+-- ScreenGui.Enabled = true -- Defaultnya sudah true
 
 local Frame = Instance.new("Frame")
 Frame.Name = "MainFrame"
@@ -52,37 +54,42 @@ local updateQiThread = nil
 
 -- UI State
 local isMinimized = false
-local originalFrameHeight = 480 -- Disesuaikan agar semua elemen muat
-local originalFrameWidth = 320
+local originalFrameHeight = 490 -- Sedikit penyesuaian tinggi
+local originalFrameWidth = 330 -- Sedikit penyesuaian lebar
 local originalFrameSize = UDim2.new(0, originalFrameWidth, 0, originalFrameHeight)
-local minimizedFrameSize = UDim2.new(0, 50, 0, 50)
+local minimizedFrameSize = UDim2.new(0, 55, 0, 55) -- Tombol minimize sedikit lebih besar
 
 local elementsToToggleVisibility = {}
 local timerInputElements = {}
 
 -- Tabel Konfigurasi Timer (Tema Kultivasi)
 local timers = {
-    wait_after_reincarnate = 2, -- Waktu setelah reinkarnasi sebelum tindakan lain
-    wait_before_forbidden_zone = 5, -- Waktu sebelum masuk Forbidden Zone (menggantikan item buying)
-    jeda_update_qi_duration = 30, -- Durasi UpdateQi dijeda (sebelumnya alur_wait_40s_hide_qi)
-    comprehend_dao_duration = 25, -- Durasi Pemahaman Dao (sebelumnya comprehend_duration)
-    qi_gathering_post_comprehend = 45, -- Pengumpulan Qi setelah Pemahaman (sebelumnya post_comprehend_qi_duration)
-
+    wait_after_reincarnate = 2,
+    wait_before_forbidden_zone = 5,
+    jeda_update_qi_duration = 30,
+    comprehend_dao_duration = 25,
+    qi_gathering_post_comprehend = 45,
     update_qi_interval = 1,
     aptitude_mine_interval = 0.1,
-    generic_delay = 0.5, -- Penundaan umum
+    generic_delay = 0.5,
     reincarnate_delay = 1,
     change_map_delay = 0.7,
     log_clear_interval = 180
 }
 
 -- Karakter untuk animasi glitch
-local glitchChars = {"道", "气", "仙", "魔", "力", "魂", "*", "#", "?", " অমর ", "混乱"} -- Karakter bertema
+local glitchChars = {"道", "气", "仙", "魔", "力", "魂", "*", "#", "?", " অমর ", "混乱"}
 
 -- // Parent UI ke player //
-local function setupCoreGuiParenting()
-    local coreGuiService = game:GetService("CoreGui")
-    ScreenGui.Parent = coreGuiService
+-- Fungsi ini akan dipanggil setelah semua elemen dibuat dan properti dasarnya diatur
+local function finalParentingAndActivation()
+    ScreenGui.Parent = CoreGui -- Parenting utama ke CoreGui
+    
+    -- Pastikan Frame utama interaktif
+    Frame.Active = true
+    Frame.Draggable = true
+    
+    -- Parenting semua elemen anak ke parent masing-masing
     Frame.Parent = ScreenGui
     UiTitleLabel.Parent = Frame
     StartScriptButton.Parent = Frame
@@ -94,57 +101,57 @@ local function setupCoreGuiParenting()
     LogTitle.Parent = LogFrame
     LogOutput.Parent = LogFrame
     MinimizedElementButton.Parent = Frame
+    
+    print("Kultivasi UI: Parenting selesai, Frame Active:", Frame.Active, "Draggable:", Frame.Draggable)
 end
-setupCoreGuiParenting()
 
 -- // DESAIN UI (Gaya mainv2.lua, Tema Kultivasi) //
 Frame.Size = originalFrameSize
 Frame.Position = UDim2.new(0.5, -Frame.Size.X.Offset / 2, 0.5, -Frame.Size.Y.Offset / 2)
-Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25) -- Gelap kebiruan
-Frame.Active = true
-Frame.Draggable = true
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 Frame.BorderSizePixel = 2
-Frame.BorderColor3 = Color3.fromRGB(180, 50, 255) -- Ungu mistis
-Frame.ClipsDescendants = true -- Klip konten yang meluap
+Frame.BorderColor3 = Color3.fromRGB(180, 50, 255)
+Frame.ClipsDescendants = true
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 12)
 UICorner.Parent = Frame
 
 -- UiTitleLabel
-local titleYPos = 10
+local currentYPos = 10
 UiTitleLabel.Size = UDim2.new(1, -20, 0, 40)
-UiTitleLabel.Position = UDim2.new(0, 10, 0, titleYPos)
-UiTitleLabel.Font = Enum.Font.SourceSansSemibold -- Atau Enum.Font.Cinzel untuk tema fantasi
+UiTitleLabel.Position = UDim2.new(0, 10, 0, currentYPos)
+UiTitleLabel.Font = Enum.Font.SourceSansSemibold
 UiTitleLabel.Text = "JALUR KULTIVASI ABADI"
-UiTitleLabel.TextColor3 = Color3.fromRGB(220, 180, 255) -- Ungu muda
+UiTitleLabel.TextColor3 = Color3.fromRGB(220, 180, 255)
 UiTitleLabel.TextScaled = false
 UiTitleLabel.TextSize = 22
 UiTitleLabel.TextXAlignment = Enum.TextXAlignment.Center
 UiTitleLabel.BackgroundTransparency = 1
-UiTitleLabel.ZIndex = 2
+UiTitleLabel.ZIndex = Frame.ZIndex + 1
 UiTitleLabel.TextStrokeTransparency = 0.6
-UiTitleLabel.TextStrokeColor3 = Color3.fromRGB(50, 20, 80) -- Stroke ungu tua
-titleYPos = titleYPos + UiTitleLabel.Size.Y.Offset + 10
+UiTitleLabel.TextStrokeColor3 = Color3.fromRGB(50, 20, 80)
+currentYPos = currentYPos + UiTitleLabel.Size.Y.Offset + 10
 
 -- StartScriptButton
 StartScriptButton.Size = UDim2.new(1, -40, 0, 40)
-StartScriptButton.Position = UDim2.new(0, 20, 0, titleYPos)
+StartScriptButton.Position = UDim2.new(0, 20, 0, currentYPos)
 StartScriptButton.Text = "MULAI KULTIVASI"
 StartScriptButton.Font = Enum.Font.SourceSansBold
 StartScriptButton.TextSize = 18
 StartScriptButton.TextColor3 = Color3.fromRGB(230, 230, 230)
-StartScriptButton.BackgroundColor3 = Color3.fromRGB(80, 40, 120) -- Ungu tua untuk tombol
+StartScriptButton.BackgroundColor3 = Color3.fromRGB(80, 40, 120)
 StartScriptButton.BorderSizePixel = 1
 StartScriptButton.BorderColor3 = Color3.fromRGB(150, 80, 200)
-StartScriptButton.ZIndex = 2
+StartScriptButton.ZIndex = Frame.ZIndex + 1
+StartScriptButton.AutoButtonColor = false -- Mencegah perubahan warna otomatis saat ditekan
 local StartButtonCorner = Instance.new("UICorner")
 StartButtonCorner.CornerRadius = UDim.new(0, 8)
 StartButtonCorner.Parent = StartScriptButton
-titleYPos = titleYPos + StartScriptButton.Size.Y.Offset + 10
+currentYPos = currentYPos + StartScriptButton.Size.Y.Offset + 10
 
 -- StatusLabel
 StatusLabel.Size = UDim2.new(1, -40, 0, 50)
-StatusLabel.Position = UDim2.new(0, 20, 0, titleYPos)
+StatusLabel.Position = UDim2.new(0, 20, 0, currentYPos)
 StatusLabel.Text = "STATUS: MENUNGGU PERINTAH"
 StatusLabel.Font = Enum.Font.SourceSansLight
 StatusLabel.TextSize = 14
@@ -152,49 +159,47 @@ StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
 StatusLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 StatusLabel.TextWrapped = true
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.TextYAlignment = Enum.TextYAlignment.Top -- Agar teks mulai dari atas
+StatusLabel.TextYAlignment = Enum.TextYAlignment.Top
 StatusLabel.PaddingLeft = UDim.new(0, 5)
 StatusLabel.PaddingTop = UDim.new(0, 5)
 StatusLabel.BorderSizePixel = 0
-StatusLabel.ZIndex = 2
+StatusLabel.ZIndex = Frame.ZIndex + 1
 local StatusLabelCorner = Instance.new("UICorner")
 StatusLabelCorner.CornerRadius = UDim.new(0, 6)
 StatusLabelCorner.Parent = StatusLabel
-titleYPos = titleYPos + StatusLabel.Size.Y.Offset + 15
+currentYPos = currentYPos + StatusLabel.Size.Y.Offset + 15
 
 -- TimerTitleLabel
 TimerTitleLabel.Size = UDim2.new(1, -40, 0, 20)
-TimerTitleLabel.Position = UDim2.new(0, 20, 0, titleYPos)
+TimerTitleLabel.Position = UDim2.new(0, 20, 0, currentYPos)
 TimerTitleLabel.Text = "// PENGATURAN SIKLUS KULTIVASI (detik)"
-TimerTitleLabel.Font = Enum.Font.Code -- Font 'teknis'
+TimerTitleLabel.Font = Enum.Font.Code
 TimerTitleLabel.TextSize = 13
-TimerTitleLabel.TextColor3 = Color3.fromRGB(180, 150, 220) -- Ungu muda
+TimerTitleLabel.TextColor3 = Color3.fromRGB(180, 150, 220)
 TimerTitleLabel.BackgroundTransparency = 1
 TimerTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TimerTitleLabel.ZIndex = 2
-titleYPos = titleYPos + TimerTitleLabel.Size.Y.Offset + 8
+TimerTitleLabel.ZIndex = Frame.ZIndex + 1
+currentYPos = currentYPos + TimerTitleLabel.Size.Y.Offset + 8
 
 -- Fungsi untuk membuat input timer
-local function createTimerInput(name, labelText, timerKey, currentY)
+local function createTimerInput(name, labelText, timerKey, yPos)
     local label = Instance.new("TextLabel")
     label.Name = name .. "Label"
-    label.Parent = Frame
     label.Size = UDim2.new(0.6, -25, 0, 22)
-    label.Position = UDim2.new(0, 20, 0, currentY)
+    label.Position = UDim2.new(0, 20, 0, yPos)
     label.Text = labelText .. ":"
     label.Font = Enum.Font.SourceSans
     label.TextSize = 12
     label.TextColor3 = Color3.fromRGB(190, 190, 210)
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.ZIndex = 2
+    label.ZIndex = Frame.ZIndex + 1
     timerInputElements[name .. "Label"] = label
 
     local input = Instance.new("TextBox")
     input.Name = name .. "Input"
-    input.Parent = Frame
     input.Size = UDim2.new(0.4, -25, 0, 22)
-    input.Position = UDim2.new(0.6, 5, 0, currentY)
+    input.Position = UDim2.new(0.6, 5, 0, yPos)
     input.Text = tostring(timers[timerKey])
     input.PlaceholderText = "detik"
     input.Font = Enum.Font.SourceSansSemibold
@@ -204,7 +209,7 @@ local function createTimerInput(name, labelText, timerKey, currentY)
     input.ClearTextOnFocus = false
     input.BorderColor3 = Color3.fromRGB(100, 70, 130)
     input.BorderSizePixel = 1
-    input.ZIndex = 2
+    input.ZIndex = Frame.ZIndex + 1
     local InputCorner = Instance.new("UICorner")
     InputCorner.CornerRadius = UDim.new(0, 4)
     InputCorner.Parent = input
@@ -212,40 +217,40 @@ local function createTimerInput(name, labelText, timerKey, currentY)
     
     table.insert(elementsToToggleVisibility, label)
     table.insert(elementsToToggleVisibility, input)
-    return currentY + 22 + 5 -- Tinggi elemen + spasi
+    return yPos + 22 + 5
 end
 
--- Membuat Input Timer
-titleYPos = createTimerInput("ReincarnateWait", "Jeda Pasca Reinkarnasi", "wait_after_reincarnate", titleYPos)
-titleYPos = createTimerInput("ForbiddenZoneWait", "Jeda Pra-Wilayah Terlarang", "wait_before_forbidden_zone", titleYPos)
-titleYPos = createTimerInput("QiPause", "Jeda Pembaruan Qi", "jeda_update_qi_duration", titleYPos)
-titleYPos = createTimerInput("DaoComprehend", "Durasi Pemahaman Dao", "comprehend_dao_duration", titleYPos)
-titleYPos = createTimerInput("PostComprehendQi", "Pengumpulan Qi Pasca Dao", "qi_gathering_post_comprehend", titleYPos)
-titleYPos = titleYPos + 5 -- Spasi ekstra
+currentYPos = createTimerInput("ReincarnateWait", "Jeda Pasca Reinkarnasi", "wait_after_reincarnate", currentYPos)
+currentYPos = createTimerInput("ForbiddenZoneWait", "Jeda Pra-Wilayah Terlarang", "wait_before_forbidden_zone", currentYPos)
+currentYPos = createTimerInput("QiPause", "Jeda Pembaruan Qi", "jeda_update_qi_duration", currentYPos)
+currentYPos = createTimerInput("DaoComprehend", "Durasi Pemahaman Dao", "comprehend_dao_duration", currentYPos)
+currentYPos = createTimerInput("PostComprehendQi", "Pengumpulan Qi Pasca Dao", "qi_gathering_post_comprehend", currentYPos)
+currentYPos = currentYPos + 5
 
 -- ApplyTimersButton
 ApplyTimersButton.Size = UDim2.new(1, -40, 0, 35)
-ApplyTimersButton.Position = UDim2.new(0, 20, 0, titleYPos)
+ApplyTimersButton.Position = UDim2.new(0, 20, 0, currentYPos)
 ApplyTimersButton.Text = "TERAPKAN PENGATURAN DAO"
 ApplyTimersButton.Font = Enum.Font.SourceSansBold
 ApplyTimersButton.TextSize = 14
 ApplyTimersButton.TextColor3 = Color3.fromRGB(230, 230, 230)
-ApplyTimersButton.BackgroundColor3 = Color3.fromRGB(60, 100, 80) -- Hijau giok
+ApplyTimersButton.BackgroundColor3 = Color3.fromRGB(60, 100, 80)
 ApplyTimersButton.BorderColor3 = Color3.fromRGB(100, 160, 120)
 ApplyTimersButton.BorderSizePixel = 1
-ApplyTimersButton.ZIndex = 2
+ApplyTimersButton.ZIndex = Frame.ZIndex + 1
+ApplyTimersButton.AutoButtonColor = false
 local ApplyButtonCorner = Instance.new("UICorner")
 ApplyButtonCorner.CornerRadius = UDim.new(0, 6)
 ApplyButtonCorner.Parent = ApplyTimersButton
-titleYPos = titleYPos + ApplyTimersButton.Size.Y.Offset + 15
+currentYPos = currentYPos + ApplyTimersButton.Size.Y.Offset + 15
 
 -- LogFrame
 LogFrame.Size = UDim2.new(1, -40, 0, 100)
-LogFrame.Position = UDim2.new(0, 20, 0, titleYPos)
+LogFrame.Position = UDim2.new(0, 20, 0, currentYPos)
 LogFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 LogFrame.BorderSizePixel = 1
 LogFrame.BorderColor3 = Color3.fromRGB(80, 60, 110)
-LogFrame.ZIndex = 1
+LogFrame.ZIndex = Frame.ZIndex + 1 -- Sama dengan elemen lain di frame, tapi di bawah tombol jika ada overlap
 local LogFrameCorner = Instance.new("UICorner")
 LogFrameCorner.CornerRadius = UDim.new(0, 6)
 LogFrameCorner.Parent = LogFrame
@@ -255,12 +260,12 @@ LogTitle.Position = UDim2.new(0, 10, 0, 5)
 LogTitle.Text = "// CATATAN PERJALANAN KULTIVASI"
 LogTitle.Font = Enum.Font.Code
 LogTitle.TextSize = 12
-LogTitle.TextColor3 = Color3.fromRGB(160, 130, 200) -- Ungu pudar
+LogTitle.TextColor3 = Color3.fromRGB(160, 130, 200)
 LogTitle.BackgroundTransparency = 1
 LogTitle.TextXAlignment = Enum.TextXAlignment.Left
-LogTitle.ZIndex = 2
+LogTitle.ZIndex = LogFrame.ZIndex + 1
 
-LogOutput.Size = UDim2.new(1, -20, 1, - (LogTitle.Position.Y.Offset + LogTitle.Size.Y.Offset + 10)) -- Mengisi sisa
+LogOutput.Size = UDim2.new(1, -20, 1, -(LogTitle.Position.Y.Offset + LogTitle.Size.Y.Offset + 10))
 LogOutput.Position = UDim2.new(0, 10, 0, LogTitle.Position.Y.Offset + LogTitle.Size.Y.Offset + 5)
 LogOutput.Text = "Log: Menunggu takdir terungkap..."
 LogOutput.Font = Enum.Font.SourceSansLight
@@ -273,28 +278,27 @@ LogOutput.TextYAlignment = Enum.TextYAlignment.Top
 LogOutput.PaddingLeft = UDim.new(0,5)
 LogOutput.PaddingTop = UDim.new(0,5)
 LogOutput.BorderSizePixel = 0
-LogOutput.ZIndex = 2
+LogOutput.ZIndex = LogFrame.ZIndex + 1
 local LogOutputCorner = Instance.new("UICorner")
 LogOutputCorner.CornerRadius = UDim.new(0, 4)
 LogOutputCorner.Parent = LogOutput
 
--- Perbarui originalFrameHeight jika diperlukan setelah semua elemen ditempatkan
-originalFrameHeight = titleYPos + LogFrame.Size.Y.Offset + 20 -- Tambahkan padding bawah
+originalFrameHeight = currentYPos + LogFrame.Size.Y.Offset + 20
 Frame.Size = UDim2.new(0, originalFrameWidth, 0, originalFrameHeight)
-originalFrameSize = Frame.Size -- Simpan ukuran final
-
+originalFrameSize = Frame.Size
 
 -- MinimizeButton
 MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
 MinimizeButton.Position = UDim2.new(1, -40, 0, 10)
-MinimizeButton.Text = "—" -- Karakter minimize
+MinimizeButton.Text = "—"
 MinimizeButton.Font = Enum.Font.SourceSansBold
 MinimizeButton.TextSize = 20
 MinimizeButton.TextColor3 = Color3.fromRGB(180, 180, 200)
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
 MinimizeButton.BorderColor3 = Color3.fromRGB(100, 100, 120)
 MinimizeButton.BorderSizePixel = 1
-MinimizeButton.ZIndex = 3
+MinimizeButton.ZIndex = Frame.ZIndex + 2 -- Di atas elemen lain di frame
+MinimizeButton.AutoButtonColor = false
 local MinimizeButtonCorner = Instance.new("UICorner")
 MinimizeButtonCorner.CornerRadius = UDim.new(0, 6)
 MinimizeButtonCorner.Parent = MinimizeButton
@@ -302,8 +306,8 @@ MinimizeButtonCorner.Parent = MinimizeButton
 -- MinimizedElementButton
 MinimizedElementButton.Size = UDim2.new(1, 0, 1, 0)
 MinimizedElementButton.Position = UDim2.new(0,0,0,0)
-MinimizedElementButton.Text = "仙" -- Karakter "Immortal"
-MinimizedElementButton.Font = Enum.Font.SourceSansBold -- Atau font Cina jika tersedia
+MinimizedElementButton.Text = "仙"
+MinimizedElementButton.Font = Enum.Font.SourceSansBold
 MinimizedElementButton.TextScaled = false
 MinimizedElementButton.TextSize = 36
 MinimizedElementButton.TextColor3 = Color3.fromRGB(200, 150, 255)
@@ -313,7 +317,7 @@ MinimizedElementButton.BackgroundColor3 = Color3.fromRGB(25,25,35)
 MinimizedElementButton.BackgroundTransparency = 0
 MinimizedElementButton.BorderColor3 = Color3.fromRGB(180, 50, 255)
 MinimizedElementButton.BorderSizePixel = 2
-MinimizedElementButton.ZIndex = 4
+MinimizedElementButton.ZIndex = Frame.ZIndex + 3 -- Paling atas saat minimize
 MinimizedElementButton.Visible = false
 MinimizedElementButton.AutoButtonColor = false
 local MinimizedBtnCorner = Instance.new("UICorner")
@@ -326,8 +330,10 @@ table.insert(elementsToToggleVisibility, StatusLabel)
 table.insert(elementsToToggleVisibility, TimerTitleLabel)
 table.insert(elementsToToggleVisibility, ApplyTimersButton)
 table.insert(elementsToToggleVisibility, LogFrame)
--- Elemen input timer sudah ditambahkan saat dibuat
+-- Input timer sudah ditambahkan
 
+-- Panggil parenting setelah semua properti dasar diatur
+finalParentingAndActivation()
 
 -- // Fungsi Bantu UI //
 local function appendLog(text)
@@ -337,7 +343,7 @@ local function appendLog(text)
         if #newText > 1200 then newText = newText:sub(1, 1200) .. "..." end
         LogOutput.Text = newText
     end
-    print("Log: " .. text)
+    -- print("Log: " .. text) -- Bisa di-uncomment untuk debug tambahan
 end
 
 local function updateStatus(text)
@@ -352,45 +358,61 @@ end
 
 -- // Fungsi Animasi UI //
 local function animateFrameUI(targetSize, targetPosition, callback)
+    if not Frame or not Frame.Parent then return end -- Guard clause
     local info = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local properties = {Size = targetSize, Position = targetPosition}
     local tween = TweenService:Create(Frame, info, properties)
     tween:Play()
     if callback then
         tween.Completed:Wait()
-        callback()
+        pcall(callback) -- Panggil callback dalam pcall untuk keamanan
     end
 end
 
 -- // Fungsi Minimize/Maximize UI //
 local function toggleMinimize()
+    print("Kultivasi UI: toggleMinimize dipanggil. isMinimized =", isMinimized)
+    if not Frame or not Frame.Parent then print("Kultivasi UI Error: Frame tidak ada saat toggleMinimize."); return end
+
     isMinimized = not isMinimized
     if isMinimized then
         for _, element in ipairs(elementsToToggleVisibility) do
             if element and element.Parent then element.Visible = false end
         end
-        MinimizedElementButton.Visible = true
-        local targetX = 1 - (minimizedFrameSize.X.Offset / ScreenGui.AbsoluteSize.X) - 0.015
-        local targetY = 1 - (minimizedFrameSize.Y.Offset / ScreenGui.AbsoluteSize.Y) - 0.015
+        if MinimizedElementButton then MinimizedElementButton.Visible = true end
+        if MinimizeButton then MinimizeButton.Visible = false end -- Sembunyikan tombol '_'
+
+        local screenAbsSize = CoreGui.AbsoluteSize
+        local targetX = 1 - (minimizedFrameSize.X.Offset / screenAbsSize.X) - 0.015
+        local targetY = 1 - (minimizedFrameSize.Y.Offset / screenAbsSize.Y) - 0.015
         local targetPosition = UDim2.new(targetX, 0, targetY, 0)
         animateFrameUI(minimizedFrameSize, targetPosition)
-        Frame.Draggable = true
-        MinimizeButton.Visible = false
+        if Frame then Frame.Draggable = true end
     else
-        MinimizedElementButton.Visible = false
+        if MinimizedElementButton then MinimizedElementButton.Visible = false end
         local targetPosition = UDim2.new(0.5, -originalFrameSize.X.Offset/2, 0.5, -originalFrameSize.Y.Offset/2)
         animateFrameUI(originalFrameSize, targetPosition, function()
+            if not Frame or not Frame.Parent then return end -- Cek lagi di dalam callback
             for _, element in ipairs(elementsToToggleVisibility) do
                 if element and element.Parent then element.Visible = true end
             end
-            Frame.Draggable = true
-            MinimizeButton.Visible = true
+            if MinimizeButton then MinimizeButton.Visible = true end -- Tampilkan kembali tombol '_'
+            if Frame then Frame.Draggable = true end
         end)
     end
 end
-MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
-if MinimizedElementButton:IsA("TextButton") then
-    MinimizedElementButton.MouseButton1Click:Connect(toggleMinimize)
+
+if MinimizeButton then
+    MinimizeButton.MouseButton1Click:Connect(function()
+        print("Kultivasi UI: Tombol MinimizeButton diklik!")
+        toggleMinimize()
+    end)
+end
+if MinimizedElementButton then
+    MinimizedElementButton.MouseButton1Click:Connect(function()
+        print("Kultivasi UI: Tombol MinimizedElementButton diklik!")
+        toggleMinimize()
+    end)
 end
 
 -- Fungsi tunggu
@@ -549,82 +571,90 @@ local function updateQiLoop_enhanced()
 end
 
 -- Tombol Start/Stop
-StartScriptButton.MouseButton1Click:Connect(function()
-    scriptRunning = not scriptRunning
-    if scriptRunning then
-        StartScriptButton.Text = "HENTIKAN KULTIVASI"
-        StartScriptButton.BackgroundColor3 = Color3.fromRGB(180, 40, 60) -- Merah saat aktif
-        StartScriptButton.TextColor3 = Color3.fromRGB(240,220,220)
-        updateStatus("Memulai perjalanan kultivasi...")
+if StartScriptButton then
+    StartScriptButton.MouseButton1Click:Connect(function()
+        print("Kultivasi UI: Tombol StartScriptButton diklik!")
+        scriptRunning = not scriptRunning
+        if scriptRunning then
+            StartScriptButton.Text = "HENTIKAN KULTIVASI"
+            StartScriptButton.BackgroundColor3 = Color3.fromRGB(180, 40, 60)
+            StartScriptButton.TextColor3 = Color3.fromRGB(240,220,220)
+            updateStatus("Memulai perjalanan kultivasi...")
 
-        stopUpdateQi = false
-        pauseUpdateQiTemporarily = false
+            stopUpdateQi = false
+            pauseUpdateQiTemporarily = false
 
-        if not aptitudeMineThread or coroutine.status(aptitudeMineThread) == "dead" then
-            aptitudeMineThread = task.spawn(increaseAptitudeMineLoop_enhanced)
-        end
-        if not updateQiThread or coroutine.status(updateQiThread) == "dead" then
-            updateQiThread = task.spawn(updateQiLoop_enhanced)
-        end
+            if not aptitudeMineThread or coroutine.status(aptitudeMineThread) == "dead" then
+                aptitudeMineThread = task.spawn(increaseAptitudeMineLoop_enhanced)
+            end
+            if not updateQiThread or coroutine.status(updateQiThread) == "dead" then
+                updateQiThread = task.spawn(updateQiLoop_enhanced)
+            end
 
-        if not mainCycleThread or coroutine.status(mainCycleThread) == "dead" then
-            mainCycleThread = task.spawn(function()
-                while scriptRunning do
-                    runCycle()
-                    if not scriptRunning then break end
-                    updateStatus("Siklus selesai. Mempersiapkan siklus berikutnya...")
-                    waitSeconds(2) -- Jeda antar siklus
-                end
-                if StatusLabel and StatusLabel.Parent then updateStatus("Kultivasi Dihentikan.") end
-                StartScriptButton.Text = "MULAI KULTIVASI"
-                StartScriptButton.BackgroundColor3 = Color3.fromRGB(80, 40, 120) -- Kembali ke warna ungu
-                StartScriptButton.TextColor3 = Color3.fromRGB(230,230,230)
-            end)
+            if not mainCycleThread or coroutine.status(mainCycleThread) == "dead" then
+                mainCycleThread = task.spawn(function()
+                    while scriptRunning do
+                        runCycle()
+                        if not scriptRunning then break end
+                        updateStatus("Siklus selesai. Mempersiapkan siklus berikutnya...")
+                        waitSeconds(2)
+                    end
+                    if StatusLabel and StatusLabel.Parent then updateStatus("Kultivasi Dihentikan.") end
+                    if StartScriptButton and StartScriptButton.Parent then
+                        StartScriptButton.Text = "MULAI KULTIVASI"
+                        StartScriptButton.BackgroundColor3 = Color3.fromRGB(80, 40, 120)
+                        StartScriptButton.TextColor3 = Color3.fromRGB(230,230,230)
+                    end
+                end)
+            end
+        else
+            updateStatus("Menghentikan perjalanan kultivasi...")
         end
-    else
-        updateStatus("Menghentikan perjalanan kultivasi...")
-    end
-end)
+    end)
+end
 
 -- Tombol Apply Timers
-ApplyTimersButton.MouseButton1Click:Connect(function()
-    local function applyTextInput(inputElement, timerKey, labelElement)
-        local success = false; if not inputElement then return false end
-        local value = tonumber(inputElement.Text)
-        if value and value >= 0 then timers[timerKey] = value
-            if labelElement then pcall(function() labelElement.TextColor3 = Color3.fromRGB(120,220,150) end) end; success = true
-        else if labelElement then pcall(function() labelElement.TextColor3 = Color3.fromRGB(220,100,100) end) end
+if ApplyTimersButton then
+    ApplyTimersButton.MouseButton1Click:Connect(function()
+        print("Kultivasi UI: Tombol ApplyTimersButton diklik!")
+        local function applyTextInput(inputElement, timerKey, labelElement)
+            local success = false; if not inputElement then return false end
+            local value = tonumber(inputElement.Text)
+            if value and value >= 0 then timers[timerKey] = value
+                if labelElement then pcall(function() labelElement.TextColor3 = Color3.fromRGB(120,220,150) end) end; success = true
+            else if labelElement then pcall(function() labelElement.TextColor3 = Color3.fromRGB(220,100,100) end) end
+            end
+            return success
         end
-        return success
-    end
-    
-    local allTimersValid = true
-    allTimersValid = applyTextInput(timerInputElements.ReincarnateWaitInput, "wait_after_reincarnate", timerInputElements.ReincarnateWaitLabel) and allTimersValid
-    allTimersValid = applyTextInput(timerInputElements.ForbiddenZoneWaitInput, "wait_before_forbidden_zone", timerInputElements.ForbiddenZoneWaitLabel) and allTimersValid
-    allTimersValid = applyTextInput(timerInputElements.QiPauseInput, "jeda_update_qi_duration", timerInputElements.QiPauseLabel) and allTimersValid
-    allTimersValid = applyTextInput(timerInputElements.DaoComprehendInput, "comprehend_dao_duration", timerInputElements.DaoComprehendLabel) and allTimersValid
-    allTimersValid = applyTextInput(timerInputElements.PostComprehendQiInput, "qi_gathering_post_comprehend", timerInputElements.PostComprehendQiLabel) and allTimersValid
+        
+        local allTimersValid = true
+        allTimersValid = applyTextInput(timerInputElements.ReincarnateWaitInput, "wait_after_reincarnate", timerInputElements.ReincarnateWaitLabel) and allTimersValid
+        allTimersValid = applyTextInput(timerInputElements.ForbiddenZoneWaitInput, "wait_before_forbidden_zone", timerInputElements.ForbiddenZoneWaitLabel) and allTimersValid
+        allTimersValid = applyTextInput(timerInputElements.QiPauseInput, "jeda_update_qi_duration", timerInputElements.QiPauseLabel) and allTimersValid
+        allTimersValid = applyTextInput(timerInputElements.DaoComprehendInput, "comprehend_dao_duration", timerInputElements.DaoComprehendLabel) and allTimersValid
+        allTimersValid = applyTextInput(timerInputElements.PostComprehendQiInput, "qi_gathering_post_comprehend", timerInputElements.PostComprehendQiLabel) and allTimersValid
 
-    local originalStatusText = StatusLabel.Text:match("STATUS: (.*)") or "MENUNGGU PERINTAH"
-    if allTimersValid then
-        updateStatus("Pengaturan Dao berhasil diterapkan.")
-        appendLog("Timer kultivasi diperbarui: " .. serpent.dump(timers)) -- Log detail timer
-    else
-        updateStatus("Input pengaturan Dao tidak valid!")
-    end
-    
-    task.delay(2.5, function()
-        if not ScreenGui or not ScreenGui.Parent then return end
-        local labelsToResetColor = {
-            timerInputElements.ReincarnateWaitLabel, timerInputElements.ForbiddenZoneWaitLabel,
-            timerInputElements.QiPauseLabel, timerInputElements.DaoComprehendLabel, timerInputElements.PostComprehendQiLabel
-        }
-        for _, lbl in ipairs(labelsToResetColor) do
-            if lbl and lbl.Parent then pcall(function() lbl.TextColor3 = Color3.fromRGB(190,190,210) end) end
+        local originalStatusText = StatusLabel.Text:match("STATUS: (.*)") or "MENUNGGU PERINTAH"
+        if allTimersValid then
+            updateStatus("Pengaturan Dao berhasil diterapkan.")
+            appendLog("Timer kultivasi diperbarui.") -- Disederhanakan lognya
+        else
+            updateStatus("Input pengaturan Dao tidak valid!")
         end
-        if StatusLabel and StatusLabel.Parent then updateStatus(originalStatusText) end
+        
+        task.delay(2.5, function()
+            if not ScreenGui or not ScreenGui.Parent then return end
+            local labelsToResetColor = {
+                timerInputElements.ReincarnateWaitLabel, timerInputElements.ForbiddenZoneWaitLabel,
+                timerInputElements.QiPauseLabel, timerInputElements.DaoComprehendLabel, timerInputElements.PostComprehendQiLabel
+            }
+            for _, lbl in ipairs(labelsToResetColor) do
+                if lbl and lbl.Parent then pcall(function() lbl.TextColor3 = Color3.fromRGB(190,190,210) end) end
+            end
+            if StatusLabel and StatusLabel.Parent then updateStatus(originalStatusText) end
+        end)
     end)
-end)
+end
 
 -- Log Clearing Loop
 task.spawn(function()
@@ -635,14 +665,14 @@ task.spawn(function()
 end)
 
 -- // ANIMASI UI //
-task.spawn(function() -- Animasi Border Frame
+task.spawn(function() 
     if not Frame or not Frame.Parent then return end
     local borderBaseColor = Frame.BorderColor3
-    while ScreenGui and ScreenGui.Parent do
+    while ScreenGui and ScreenGui.Parent and Frame and Frame.Parent do
         if not isMinimized then
             local h,s,v = Color3.toHSV(Frame.BorderColor3)
-            Frame.BorderColor3 = Color3.fromHSV((h + 0.005)%1, s, v) -- Rotasi hue lambat
-            if math.random() < 0.02 then -- Glitch sesekali
+            Frame.BorderColor3 = Color3.fromHSV((h + 0.005)%1, s, v)
+            if math.random() < 0.02 then
                 Frame.BorderSizePixel = math.random(2,4)
                 task.wait(0.05)
                 Frame.BorderSizePixel = 2
@@ -652,10 +682,10 @@ task.spawn(function() -- Animasi Border Frame
     end
 end)
 
-task.spawn(function() -- Animasi UiTitleLabel
+task.spawn(function() 
     if not UiTitleLabel or not UiTitleLabel.Parent then return end
     local originalText1 = "JALUR KULTIVASI ABADI"
-    local originalText2 = "ZXHELL x ZEDLIST" -- Teks sekunder
+    local originalText2 = "ZXHELL x ZEDLIST"
     local currentTargetText = originalText1
     local baseColor = UiTitleLabel.TextColor3
     local originalPos = UiTitleLabel.Position
@@ -671,10 +701,10 @@ task.spawn(function() -- Animasi UiTitleLabel
         return newText
     end
 
-    while ScreenGui and ScreenGui.Parent do
+    while ScreenGui and ScreenGui.Parent and UiTitleLabel and UiTitleLabel.Parent do
         if not isMinimized then
             local startTime = tick()
-            while tick() - startTime < transitionTime and ScreenGui and ScreenGui.Parent and not isMinimized do
+            while tick() - startTime < transitionTime and ScreenGui and ScreenGui.Parent and not isMinimized and UiTitleLabel and UiTitleLabel.Parent do
                 local progress = (tick() - startTime) / transitionTime
                 local mixedText = ""
                 local textToGlitchFrom = (currentTargetText == originalText1) and originalText2 or originalText1
@@ -685,21 +715,21 @@ task.spawn(function() -- Animasi UiTitleLabel
                     else mixedText = mixedText .. (char1 ~= "" and char1 or glitchChars[math.random(#glitchChars)]) end
                 end
                 UiTitleLabel.Text = applyCultivationGlitch(mixedText)
-                UiTitleLabel.TextColor3 = Color3.fromHSV(math.random(), 0.8, 1) -- Warna cerah
+                UiTitleLabel.TextColor3 = Color3.fromHSV(math.random(), 0.8, 1)
                 UiTitleLabel.Position = originalPos + UDim2.fromOffset(math.random(-1,1), math.random(-1,1))
                 UiTitleLabel.Rotation = math.random(-0.5,0.5)
                 task.wait(0.06)
             end
-            if not (ScreenGui and ScreenGui.Parent and not isMinimized) then task.wait(0.1); continue end
+            if not (ScreenGui and ScreenGui.Parent and not isMinimized and UiTitleLabel and UiTitleLabel.Parent) then task.wait(0.1); if ScreenGui and ScreenGui.Parent then continue else break end end
 
             UiTitleLabel.Text = currentTargetText
             local hue = (tick()*0.05) % 1
-            UiTitleLabel.TextColor3 = Color3.fromHSV(hue, 0.7, 0.95) -- Warna berputar
+            UiTitleLabel.TextColor3 = Color3.fromHSV(hue, 0.7, 0.95)
             UiTitleLabel.Position = originalPos
             UiTitleLabel.Rotation = 0
             
             waitSeconds(displayTime)
-            if not (ScreenGui and ScreenGui.Parent and not isMinimized) then task.wait(0.1); continue end
+            if not (ScreenGui and ScreenGui.Parent and not isMinimized and UiTitleLabel and UiTitleLabel.Parent) then task.wait(0.1); if ScreenGui and ScreenGui.Parent then continue else break end end
             if currentTargetText == originalText1 then currentTargetText = originalText2 else currentTargetText = originalText1 end
         else
             UiTitleLabel.Text = originalText1
@@ -711,7 +741,7 @@ task.spawn(function() -- Animasi UiTitleLabel
     end
 end)
 
-task.spawn(function() -- Animasi Tombol
+task.spawn(function() 
     local buttonsToAnimate = {StartScriptButton, ApplyTimersButton, MinimizeButton}
     while ScreenGui and ScreenGui.Parent do
         if not isMinimized then
@@ -731,16 +761,16 @@ task.spawn(function() -- Animasi Tombol
     end
 end)
 
-task.spawn(function() -- Animasi Tombol Minimized
+task.spawn(function() 
     local originalIconText = MinimizedElementButton.Text
-    while ScreenGui and ScreenGui.Parent do
-        if isMinimized and MinimizedElementButton and MinimizedElementButton.Visible then
+    while ScreenGui and ScreenGui.Parent and MinimizedElementButton and MinimizedElementButton.Parent do
+        if isMinimized and MinimizedElementButton.Visible then
             if math.random() < 0.25 then
                 MinimizedElementButton.Text = glitchChars[math.random(#glitchChars)]
                 MinimizedElementButton.TextColor3 = Color3.fromHSV(math.random(), 0.9, 1)
                 MinimizedElementButton.BorderColor3 = Color3.fromHSV(math.random(), 0.9, 1)
                 MinimizedElementButton.Rotation = math.random(-5,5)
-                Frame.BorderColor3 = MinimizedElementButton.BorderColor3
+                if Frame and Frame.Parent then Frame.BorderColor3 = MinimizedElementButton.BorderColor3 end
                 task.wait(0.04 + math.random()*0.04)
                 MinimizedElementButton.Text = originalIconText
                 MinimizedElementButton.Rotation = math.random(-2,2)
@@ -750,7 +780,7 @@ task.spawn(function() -- Animasi Tombol Minimized
                 MinimizedElementButton.TextColor3 = Color3.fromHSV(hue, 0.8, 1)
                 MinimizedElementButton.BorderColor3 = Color3.fromHSV((hue + 0.2)%1, 0.7, 1)
                 MinimizedElementButton.Rotation = 0
-                Frame.BorderColor3 = MinimizedElementButton.BorderColor3
+                if Frame and Frame.Parent then Frame.BorderColor3 = MinimizedElementButton.BorderColor3 end
             end
         end
         task.wait(0.06)
@@ -769,23 +799,14 @@ game:BindToClose(function()
 end)
 
 -- Inisialisasi
-appendLog("Skrip Asisten Kultivasi Abadi (ZX Edition) V4 Telah Dimuat.")
+appendLog("Skrip Asisten Kultivasi Abadi (ZX Edition) V5 Telah Dimuat.")
 task.wait(0.2)
 if StatusLabel and StatusLabel.Parent and StatusLabel.Text == "STATUS: " then
     updateStatus("MENUNGGU PERINTAH")
 end
 
--- Pastikan serpent ada di environment Anda atau hapus bagian logging detail timer jika tidak.
--- Jika tidak ada, ganti serpent.dump(timers) dengan loop manual untuk mencetak timer.
-if not _G.serpent then
-    _G.serpent = {
-        dump = function(tbl)
-            local s = "{"
-            for k, v in pairs(tbl) do
-                s = s .. tostring(k) .. "=" .. tostring(v) .. ","
-            end
-            return s .. "}"
-        end
-    }
-    appendLog("Perpustakaan 'serpent' tidak ditemukan, menggunakan fallback sederhana untuk log timer.")
-end
+-- Hapus referensi ke serpent jika tidak digunakan atau tidak tersedia
+-- appendLog("Timer kultivasi diperbarui: " .. serpent.dump(timers))
+-- menjadi:
+-- appendLog("Timer kultivasi diperbarui.")
+print("Kultivasi UI: Skrip selesai dimuat dan UI seharusnya sudah muncul.")
