@@ -1,10 +1,15 @@
--- // UI FRAME (Struktur Asli Dipertahankan) //
-local ScreenGui = Instance.new("ScreenGui")
-local Frame = Instance.new("Frame")
-local StartButton = Instance.new("TextButton")
-local StatusLabel = Instance.new("TextLabel")
+--[[
+    ZXHELL X ZEDLIST - Enhanced UI & Animation Overhaul
+    Client-Side Automation Script for Roblox
+]]
 
--- --- Variabel Kontrol dan State (Dari skrip Anda) ---
+-- // Layanan Roblox //
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local CoreGui = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- // Variabel Kontrol dan State (Dari skrip Anda) ---
 local scriptRunning = false
 local stopUpdateQi = false 
 local pauseUpdateQiTemporarily = false 
@@ -12,7 +17,7 @@ local mainCycleThread = nil
 local aptitudeMineThread = nil
 local updateQiThread = nil
 
--- --- Tabel Konfigurasi Timer (Dari skrip Anda, dengan penyesuaian) ---
+-- // Tabel Konfigurasi Timer (Dari skrip Anda, DENGAN NILAI BARU DARI ANDA) ---
 local timers = {
     wait_1m30s_after_first_items = 0, 
     alur_wait_40s_hide_qi = 0,             
@@ -33,207 +38,288 @@ local timers = {
     fireserver_generic_delay = 0.25 
 }
 
--- // Parent UI ke player (Struktur Asli Dipertahankan) //
-local function setupCoreGuiParenting()
-    local coreGuiService = game:GetService("CoreGui")
-    if not ScreenGui.Parent or ScreenGui.Parent ~= coreGuiService then
-        ScreenGui.Parent = coreGuiService
-    end
-    if not Frame.Parent or Frame.Parent ~= ScreenGui then
-        Frame.Parent = ScreenGui
-    end
-    if not StartButton.Parent or StartButton.Parent ~= Frame then
-        StartButton.Parent = Frame
-    end
-    if not StatusLabel.Parent or StatusLabel.Parent ~= Frame then
-        StatusLabel.Parent = Frame
-    end
-end
-setupCoreGuiParenting() 
+-- // Variabel UI Utama (Elemen inti dari skrip Anda tetap ada) //
+local ScreenGui, Frame, StartButton, StatusLabel
+local UiTitleLabel, TimerTitleLabel, ApplyTimersButton, MinimizeButton
+local ComprehendInput, PostComprehendQiInput -- Dan label-labelnya
+local timerElements = {} -- Untuk menyimpan elemen timer input & label
 
--- // Desain UI (Properti Elemen yang Ada Dimodifikasi untuk Tampilan Baru) //
-
--- --- Frame Utama ---
-Frame.Size = UDim2.new(0, 300, 0, 480) -- Sedikit lebih lebar dan tinggi
-Frame.Position = UDim2.new(0.5, -Frame.Size.X.Offset/2, 0.5, -Frame.Size.Y.Offset/2) -- Tengah layar
-Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20) -- Latar belakang gelap kebiruan
-Frame.Active = true 
-Frame.Draggable = true 
-Frame.BorderSizePixel = 2 -- Border lebih tebal
-Frame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- Awalnya merah, akan dianimasikan
-
--- --- Nama UI Label ("ZXHELL X ZEDLIST") ---
-local UiTitleLabel = Instance.new("TextLabel")
-UiTitleLabel.Name = "UiTitleLabel"
-UiTitleLabel.Parent = Frame
-UiTitleLabel.Size = UDim2.new(1, -20, 0, 40) -- Lebih besar
-UiTitleLabel.Position = UDim2.new(0, 10, 0, 10) 
-UiTitleLabel.Font = Enum.Font.SourceSansSemibold -- Font lebih tegas
-UiTitleLabel.Text = "ZXHELL X ZEDLIST"
-UiTitleLabel.TextColor3 = Color3.fromRGB(255, 25, 25) 
-UiTitleLabel.TextScaled = false -- TextScaled false agar bisa kontrol ukuran font
-UiTitleLabel.TextSize = 28 -- Ukuran font spesifik
-UiTitleLabel.TextXAlignment = Enum.TextXAlignment.Center
-UiTitleLabel.BackgroundTransparency = 1
-UiTitleLabel.ZIndex = 2
-UiTitleLabel.TextStrokeTransparency = 0.5
-UiTitleLabel.TextStrokeColor3 = Color3.fromRGB(50,0,0)
-
--- Posisi elemen lain disesuaikan dengan layout baru
-local yOffsetForTitle = 55 -- Jarak dari atas frame ke elemen berikutnya
-
--- --- Tombol Start/Stop ---
-StartButton.Size = UDim2.new(1, -40, 0, 40) 
-StartButton.Position = UDim2.new(0, 20, 0, yOffsetForTitle)
-StartButton.Text = "START SEQUENCE"
-StartButton.Font = Enum.Font.SourceSansBold
-StartButton.TextSize = 18
-StartButton.TextColor3 = Color3.fromRGB(220, 220, 220)
-StartButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20) -- Merah gelap
-StartButton.BorderSizePixel = 1
-StartButton.BorderColor3 = Color3.fromRGB(255, 50, 50)
-
--- --- Status Label ---
-StatusLabel.Size = UDim2.new(1, -40, 0, 50) 
-StatusLabel.Position = UDim2.new(0, 20, 0, yOffsetForTitle + 50)
-StatusLabel.Text = "STATUS: STANDBY"
-StatusLabel.Font = Enum.Font.SourceSansLight
-StatusLabel.TextSize = 16
-StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 220) -- Putih kebiruan
-StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 30) -- Gelap
-StatusLabel.TextWrapped = true 
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left 
-StatusLabel.BorderSizePixel = 0
-
-local yOffsetForTimers = yOffsetForTitle + 110
-
--- --- Konfigurasi Timer UI ---
-local timerElements = {} 
-local TimerTitleLabel = Instance.new("TextLabel")
-TimerTitleLabel.Name = "TimerTitle"
-TimerTitleLabel.Parent = Frame
-TimerTitleLabel.Size = UDim2.new(1, -40, 0, 25)
-TimerTitleLabel.Position = UDim2.new(0, 20, 0, yOffsetForTimers)
-TimerTitleLabel.Text = "// TIMER CONFIGURATION_SEQ"
-TimerTitleLabel.Font = Enum.Font.Code
-TimerTitleLabel.TextSize = 16
-TimerTitleLabel.TextColor3 = Color3.fromRGB(255, 80, 80) -- Merah terang
-TimerTitleLabel.BackgroundTransparency = 1
-TimerTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local function createTimerInput(name, yPos, labelText, timerKey)
-    local label = Instance.new("TextLabel")
-    label.Name = name .. "Label"
-    label.Parent = Frame
-    label.Size = UDim2.new(0.55, -25, 0, 22)
-    label.Position = UDim2.new(0, 20, 0, yPos + yOffsetForTimers)
-    label.Text = labelText .. ":"
-    label.Font = Enum.Font.SourceSans
-    label.TextSize = 14
-    label.TextColor3 = Color3.fromRGB(180, 180, 200)
-    label.BackgroundTransparency = 1
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    timerElements[name .. "Label"] = label
-
-    local input = Instance.new("TextBox")
-    input.Name = name .. "Input"
-    input.Parent = Frame
-    input.Size = UDim2.new(0.45, -25, 0, 22)
-    input.Position = UDim2.new(0.55, 5, 0, yPos + yOffsetForTimers)
-    input.Text = tostring(timers[timerKey])
-    input.PlaceholderText = "sec"
-    input.Font = Enum.Font.SourceSansSemibold
-    input.TextSize = 14
-    input.TextColor3 = Color3.fromRGB(255, 255, 255)
-    input.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    input.ClearTextOnFocus = false
-    input.BorderColor3 = Color3.fromRGB(100, 100, 120)
-    input.BorderSizePixel = 1
-    timerElements[name .. "Input"] = input
-    return input 
-end
-
-local currentYConfig = 35 -- Jarak dari TimerTitleLabel
-timerElements.wait1m30sInput = createTimerInput("Wait1m30s", currentYConfig, "T1_POST_ITEM_SET1", "wait_1m30s_after_first_items")
-currentYConfig = currentYConfig + 30
-timerElements.wait40sInput = createTimerInput("Wait40s", currentYConfig, "T2_ITEM2_QI_PAUSE", "alur_wait_40s_hide_qi")
-currentYConfig = currentYConfig + 30
-timerElements.comprehendInput = createTimerInput("Comprehend", currentYConfig, "T3_COMPREHEND_DUR", "comprehend_duration")
-currentYConfig = currentYConfig + 30
-timerElements.postComprehendQiInput = createTimerInput("PostComprehendQi", currentYConfig, "T4_POST_COMP_QI_DUR", "post_comprehend_qi_duration")
-currentYConfig = currentYConfig + 40 
-
-local ApplyTimersButton = Instance.new("TextButton")
-ApplyTimersButton.Name = "ApplyTimersButton"
-ApplyTimersButton.Parent = Frame
-ApplyTimersButton.Size = UDim2.new(1, -40, 0, 35)
-ApplyTimersButton.Position = UDim2.new(0, 20, 0, currentYConfig + yOffsetForTimers)
-ApplyTimersButton.Text = "APPLY_TIMERS"
-ApplyTimersButton.Font = Enum.Font.SourceSansBold
-ApplyTimersButton.TextSize = 16
-ApplyTimersButton.TextColor3 = Color3.fromRGB(220, 220, 220)
-ApplyTimersButton.BackgroundColor3 = Color3.fromRGB(30, 80, 30) -- Hijau gelap
-ApplyTimersButton.BorderColor3 = Color3.fromRGB(80, 255, 80)
-ApplyTimersButton.BorderSizePixel = 1
-timerElements.ApplyButton = ApplyTimersButton
-
--- --- Tombol Minimize ---
-local MinimizeButton = Instance.new("TextButton")
-MinimizeButton.Name = "MinimizeButton"
-MinimizeButton.Parent = Frame
-MinimizeButton.Size = UDim2.new(0, 25, 0, 25) 
-MinimizeButton.Position = UDim2.new(1, -35, 0, 10) 
-MinimizeButton.Text = "_" -- Simbol minimize
-MinimizeButton.Font = Enum.Font.SourceSansBold
-MinimizeButton.TextSize = 20
-MinimizeButton.TextColor3 = Color3.fromRGB(180, 180, 180)
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-MinimizeButton.BorderColor3 = Color3.fromRGB(100,100,120)
-MinimizeButton.BorderSizePixel = 1
-MinimizeButton.ZIndex = 3 
+-- // --- PENAMBAHAN: Elemen UI Baru untuk Efek Visual ---
+local BackgroundGlitchFrame -- Frame untuk efek glitch teks ZXHELL di latar
+local MinimizedPopupFrame -- Frame untuk pop-up petir saat minimize
 
 local isMinimized = false
-local originalFrameSize = Frame.Size 
-local minimizedFrameHeight = 50 -- Hanya cukup untuk Title dan tombol minimize
+local originalFrameSize, originalFramePosition
 
-local elementsToToggleVisibility = {
-    StartButton, StatusLabel, TimerTitleLabel, ApplyTimersButton,
-    timerElements.Wait1m30sLabel, timerElements.wait1m30sInput,
-    timerElements.Wait40sLabel, timerElements.wait40sInput,
-    timerElements.ComprehendLabel, timerElements.comprehendInput,
-    timerElements.PostComprehendQiLabel, timerElements.postComprehendQiInput
-}
+-- // Fungsi Setup UI (Akan membuat SEMUA elemen UI) //
+local function CreateAdvancedUI()
+    if ScreenGui and ScreenGui.Parent then ScreenGui:Destroy() end -- Hapus UI lama jika ada
+
+    ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "ZXHELL_ZEDLIST_AdvancedUI"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    -- ScreenGui.Parent = CoreGui -- Diparentkan nanti setelah semua elemen dibuat
+
+    -- 1. Latar Belakang Glitch "ZXHELL"
+    BackgroundGlitchFrame = Instance.new("Frame")
+    BackgroundGlitchFrame.Name = "BackgroundGlitch"
+    BackgroundGlitchFrame.Parent = ScreenGui
+    BackgroundGlitchFrame.Size = UDim2.new(1, 0, 1, 0) -- Fullscreen
+    BackgroundGlitchFrame.Position = UDim2.new(0, 0, 0, 0)
+    BackgroundGlitchFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 10) -- Warna dasar sangat gelap
+    BackgroundGlitchFrame.BackgroundTransparency = 0.85 -- Agak transparan
+    BackgroundGlitchFrame.ZIndex = 0 -- Paling belakang
+
+    local BackgroundGlitchText = Instance.new("TextLabel")
+    BackgroundGlitchText.Name = "GlitchTextOverlay"
+    BackgroundGlitchText.Parent = BackgroundGlitchFrame
+    BackgroundGlitchText.Size = UDim2.new(1, 0, 1, 0)
+    BackgroundGlitchText.Text = string.rep("ZXHELL ERR ", 100) -- Teks berulang
+    BackgroundGlitchText.Font = Enum.Font.Code
+    BackgroundGlitchText.TextSize = 30
+    BackgroundGlitchText.TextColor3 = Color3.fromRGB(100, 0, 0) -- Merah gelap
+    BackgroundGlitchText.TextWrapped = true
+    BackgroundGlitchText.TextXAlignment = Enum.TextXAlignment.Center
+    BackgroundGlitchText.TextYAlignment = Enum.TextYAlignment.Center
+    BackgroundGlitchText.BackgroundTransparency = 1
+    BackgroundGlitchText.TextTransparency = 0.7 -- Sangat transparan
+
+    -- 2. Frame Utama Kontrol
+    Frame = Instance.new("Frame")
+    Frame.Name = "ZXMainControlFrame"
+    Frame.Parent = ScreenGui
+    Frame.Size = UDim2.new(0, 340, 0, 520)
+    Frame.Position = UDim2.new(0.5, -Frame.Size.X.Offset/2, 0.5, -Frame.Size.Y.Offset/2)
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    Frame.Active = true
+    Frame.Draggable = true
+    Frame.BorderSizePixel = 0 -- Akan menggunakan UIStroke
+    Frame.ZIndex = 1
+
+    local FrameCorner = Instance.new("UICorner")
+    FrameCorner.CornerRadius = UDim.new(0, 12)
+    FrameCorner.Parent = Frame
+
+    local FrameStroke = Instance.new("UIStroke")
+    FrameStroke.Color = Color3.fromRGB(255, 0, 0)
+    FrameStroke.Thickness = 2
+    FrameStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    FrameStroke.Parent = Frame
+
+    local FrameGradient = Instance.new("UIGradient")
+    FrameGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(30,10,10)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(40,15,25)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(30,10,10))
+    })
+    FrameGradient.Rotation = 45
+    FrameGradient.Parent = Frame
+
+    -- 3. Title UI "ZXHELL X ZEDLIST"
+    UiTitleLabel = Instance.new("TextLabel")
+    UiTitleLabel.Name = "UiTitle_ZXHELL_ZEDLIST"
+    UiTitleLabel.Parent = Frame
+    UiTitleLabel.Size = UDim2.new(1, 0, 0, 60)
+    UiTitleLabel.Position = UDim2.new(0,0,0,0)
+    UiTitleLabel.Font = Enum.Font.Michroma
+    UiTitleLabel.Text = "ZXHELL X ZEDLIST"
+    UiTitleLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+    UiTitleLabel.TextSize = 30
+    UiTitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    UiTitleLabel.TextYAlignment = Enum.TextYAlignment.Center
+    UiTitleLabel.BackgroundTransparency = 1
+    UiTitleLabel.ZIndex = Frame.ZIndex + 1
+    UiTitleLabel.TextStrokeColor3 = Color3.fromRGB(100,0,0)
+    UiTitleLabel.TextStrokeTransparency = 0.2
+
+    local yOffset = 70 -- Mulai elemen di bawah title
+
+    -- 4. Tombol Start/Stop
+    StartButton = Instance.new("TextButton")
+    StartButton.Name = "Control_StartButton"
+    StartButton.Parent = Frame
+    StartButton.Size = UDim2.new(1, -40, 0, 45)
+    StartButton.Position = UDim2.new(0, 20, 0, yOffset)
+    StartButton.Font = Enum.Font.Orbitron
+    StartButton.Text = "[[ INITIALIZE SEQUENCE ]]"
+    StartButton.TextSize = 18
+    StartButton.TextColor3 = Color3.fromRGB(220, 200, 255)
+    StartButton.BackgroundColor3 = Color3.fromRGB(40, 20, 60) -- Ungu gelap
+    StartButton.ZIndex = Frame.ZIndex + 1
+    local sbCorner = Instance.new("UICorner"); sbCorner.Parent = StartButton;
+    local sbStroke = Instance.new("UIStroke"); sbStroke.Color = Color3.fromRGB(150,80,200); sbStroke.Thickness = 1.5; sbStroke.Parent = StartButton
+
+    yOffset = yOffset + StartButton.Size.Y.Offset + 15
+
+    -- 5. Status Label
+    StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Name = "Display_StatusLabel"
+    StatusLabel.Parent = Frame
+    StatusLabel.Size = UDim2.new(1, -40, 0, 65)
+    StatusLabel.Position = UDim2.new(0, 20, 0, yOffset)
+    StatusLabel.Font = Enum.Font.ShareTechMono
+    StatusLabel.Text = "SYSTEM STATUS: AWAITING INITIALIZATION..."
+    StatusLabel.TextSize = 14
+    StatusLabel.TextColor3 = Color3.fromRGB(150, 255, 150) -- Hijau neon
+    StatusLabel.BackgroundColor3 = Color3.fromRGB(10,25,10)
+    StatusLabel.TextWrapped = true
+    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    StatusLabel.TextYAlignment = Enum.TextYAlignment.Top
+    StatusLabel.PaddingLeft = UDim.new(0,8); StatusLabel.PaddingTop = UDim.new(0,8); StatusLabel.PaddingRight = UDim.new(0,8); StatusLabel.PaddingBottom = UDim.new(0,8)
+    StatusLabel.ZIndex = Frame.ZIndex + 1
+    local slCorner = Instance.new("UICorner"); slCorner.Parent = StatusLabel;
+    local slStroke = Instance.new("UIStroke"); slStroke.Color = Color3.fromRGB(50,150,50); slStroke.Thickness = 1; slStroke.Parent = StatusLabel
+
+    yOffset = yOffset + StatusLabel.Size.Y.Offset + 20
+
+    -- 6. Konfigurasi Timer UI
+    TimerTitleLabel = Instance.new("TextLabel") -- Sudah didefinisikan di atas
+    TimerTitleLabel.Name = "Config_TimerHeader"
+    TimerTitleLabel.Parent = Frame
+    TimerTitleLabel.Size = UDim2.new(1, -40, 0, 25)
+    TimerTitleLabel.Position = UDim2.new(0, 20, 0, yOffset)
+    TimerTitleLabel.Text = "CRITICAL_TIMING_ADJUSTMENTS:"
+    TimerTitleLabel.Font = Enum.Font.NovaMono
+    TimerTitleLabel.TextSize = 16
+    TimerTitleLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
+    TimerTitleLabel.BackgroundTransparency = 1
+    TimerTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TimerTitleLabel.ZIndex = Frame.ZIndex + 1
+
+    yOffset = yOffset + TimerTitleLabel.Size.Y.Offset + 10
+    
+    local timerConfigData = {
+        {name="Wait1m30s", label="T_POST_ITEM1", key="wait_1m30s_after_first_items"},
+        {name="Wait40s", label="T_ITEM2_QI_PAUSE", key="alur_wait_40s_hide_qi"},
+        {name="Comprehend", label="T_COMPREHEND_DUR", key="comprehend_duration"},
+        {name="PostCompQi", label="T_POST_COMP_QI_DUR", key="post_comprehend_qi_duration"}
+    }
+
+    for i, data in ipairs(timerConfigData) do
+        local label = Instance.new("TextLabel")
+        label.Name = data.name .. "Label"
+        label.Parent = Frame
+        label.Size = UDim2.new(0.6, -25, 0, 22)
+        label.Position = UDim2.new(0, 20, 0, yOffset)
+        label.Text = data.label .. ":"
+        label.Font = Enum.Font.ShareTechMono
+        label.TextSize = 13
+        label.TextColor3 = Color3.fromRGB(190, 190, 220)
+        label.BackgroundTransparency = 1
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.ZIndex = Frame.ZIndex + 1
+        timerElements[data.name .. "Label"] = label
+
+        local input = Instance.new("TextBox")
+        input.Name = data.name .. "Input"
+        input.Parent = Frame
+        input.Size = UDim2.new(0.4, -25, 0, 22)
+        input.Position = UDim2.new(0.6, 5, 0, yOffset)
+        input.Text = tostring(timers[data.key])
+        input.PlaceholderText = "sec"
+        input.Font = Enum.Font.NovaMono
+        input.TextSize = 14
+        input.TextColor3 = Color3.fromRGB(240, 240, 255)
+        input.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+        input.ClearTextOnFocus = false
+        input.ZIndex = Frame.ZIndex + 1
+        local tiCorner = Instance.new("UICorner"); tiCorner.Parent = input;
+        local tiStroke = Instance.new("UIStroke"); tiStroke.Color = Color3.fromRGB(100,100,150); tiStroke.Thickness = 1; tiStroke.Parent = input;
+        timerElements[data.name .. "Input"] = input
+        
+        yOffset = yOffset + label.Size.Y.Offset + 8 -- Jarak antar input timer
+    end
+
+    yOffset = yOffset + 10 -- Spasi sebelum tombol apply
+
+    ApplyTimersButton = Instance.new("TextButton")
+    ApplyTimersButton.Name = "Config_ApplyTimersButton"
+    ApplyTimersButton.Parent = Frame
+    ApplyTimersButton.Size = UDim2.new(1, -40, 0, 35)
+    ApplyTimersButton.Position = UDim2.new(0, 20, 0, yOffset)
+    ApplyTimersButton.Font = Enum.Font.Orbitron
+    ApplyTimersButton.Text = "[[ OVERRIDE_TIMERS ]]"
+    ApplyTimersButton.TextSize = 16
+    ApplyTimersButton.TextColor3 = Color3.fromRGB(200, 255, 200)
+    ApplyTimersButton.BackgroundColor3 = Color3.fromRGB(20, 70, 20)
+    ApplyTimersButton.ZIndex = Frame.ZIndex + 1
+    local atbCorner = Instance.new("UICorner"); atbCorner.Parent = ApplyTimersButton;
+    local atbStroke = Instance.new("UIStroke"); atbStroke.Color = Color3.fromRGB(80,200,80); atbStroke.Thickness = 1.5; atbStroke.Parent = ApplyTimersButton;
+
+    -- 7. Tombol Minimize
+    MinimizeButton = Instance.new("TextButton")
+    MinimizeButton.Name = "Control_MinimizeButton"
+    MinimizeButton.Parent = Frame -- Diparentkan ke Frame utama, bukan ke ScreenGui langsung
+    MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+    MinimizeButton.Position = UDim2.new(1, -40, 0, 10) -- Pojok kanan atas Frame utama
+    MinimizeButton.Font = Enum.Font.SourceSansBold
+    MinimizeButton.Text = "_"
+    MinimizeButton.TextSize = 20
+    MinimizeButton.TextColor3 = Color3.fromRGB(180, 180, 200)
+    MinimizeButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    MinimizeButton.ZIndex = Frame.ZIndex + 2 -- Di atas elemen frame lain
+    local mbCorner = Instance.new("UICorner"); mbCorner.Parent = MinimizeButton;
+    local mbStroke = Instance.new("UIStroke"); mbStroke.Color = Color3.fromRGB(100,100,150); mbStroke.Thickness = 1; mbStroke.Parent = MinimizeButton;
+
+    -- 8. Frame untuk Pop-up Minimize (Awalnya tidak terlihat)
+    MinimizedPopupFrame = Instance.new("Frame")
+    MinimizedPopupFrame.Name = "MinimizedLightningPopup"
+    MinimizedPopupFrame.Parent = ScreenGui -- Diparentkan ke ScreenGui agar bisa di atas segalanya
+    MinimizedPopupFrame.Size = UDim2.fromOffset(80, 80)
+    MinimizedPopupFrame.Position = UDim2.new(0.02, 0, 0.5, -MinimizedPopupFrame.Size.Y.Offset/2) -- Kiri tengah
+    MinimizedPopupFrame.BackgroundColor3 = Color3.fromRGB(150,0,0) -- Dasar merah
+    MinimizedPopupFrame.BackgroundTransparency = 0.1
+    MinimizedPopupFrame.BorderSizePixel = 0
+    MinimizedPopupFrame.Visible = false -- Awalnya tidak terlihat
+    MinimizedPopupFrame.ZIndex = 10 -- Di atas segalanya
+    local mpfCorner = Instance.new("UICorner"); mpfCorner.CornerRadius = UDim.new(0.5,0); mpfCorner.Parent = MinimizedPopupFrame; -- Lingkaran/oval
+    local mpfStroke = Instance.new("UIStroke"); mpfStroke.Color = Color3.fromRGB(255,50,50); mpfStroke.Thickness = 2; mpfStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; mpfStroke.Parent = MinimizedPopupFrame;
+
+    local MaximizeButton = Instance.new("TextButton") -- Tombol untuk maximize dari pop-up
+    MaximizeButton.Name = "Control_MaximizeButton"
+    MaximizeButton.Parent = MinimizedPopupFrame
+    MaximizeButton.Size = UDim2.new(1, -10, 0, 25)
+    MaximizeButton.Position = UDim2.new(0, 5, 1, -30) -- Di bawah pop-up
+    MaximizeButton.Text = "MAXIMIZE"
+    MaximizeButton.Font = Enum.Font.SourceSansBold
+    MaximizeButton.TextSize = 12
+    MaximizeButton.TextColor3 = Color3.fromRGB(255,200,200)
+    MaximizeButton.BackgroundColor3 = Color3.fromRGB(80,0,0)
+    MaximizeButton.BackgroundTransparency = 0.3
+    MaximizeButton.ZIndex = MinimizedPopupFrame.ZIndex + 1
+    local maxBCorner = Instance.new("UICorner"); maxBCorner.CornerRadius = UDim.new(0,4); maxBCorner.Parent = MaximizeButton;
+    timerElements.MaximizeButton = MaximizeButton -- Simpan referensi
+
+    originalFrameSize = Frame.Size
+    originalFramePosition = Frame.Position
+
+    ScreenGui.Parent = CoreGui -- Parentkan ScreenGui utama di akhir
+    print("CreateAdvancedUI: UI Dibuat/Diperbarui.")
+end
+
 
 -- // Fungsi tunggu (Struktur Asli Dipertahankan) //
 local function waitSeconds(sec)
     if sec <= 0 then task.wait() return end 
     local startTime = tick()
-    repeat
-        task.wait() 
-    until not scriptRunning or tick() - startTime >= sec
+    repeat task.wait() until not scriptRunning or tick() - startTime >= sec
 end
 
 -- Fungsi fireRemoteEnhanced (Dari skrip Anda)
 local function fireRemoteEnhanced(remoteName, pathType, ...)
     local argsToUnpack = table.pack(...)
-    local remoteEventFolder
-    local success = false
-    local errMessage = "Unknown error"
+    local remoteEventFolder; local success = false; local errMessage = "Unknown error"
     local pcallSuccess, pcallResult = pcall(function()
-        if pathType == "AreaEvents" then
-            remoteEventFolder = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents", 9e9):WaitForChild("AreaEvents", 9e9)
-        else
-            remoteEventFolder = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents", 9e9)
-        end
+        if pathType == "AreaEvents" then remoteEventFolder = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents", 9e9):WaitForChild("AreaEvents", 9e9)
+        else remoteEventFolder = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents", 9e9) end
         local remote = remoteEventFolder:WaitForChild(remoteName, 9e9)
         remote:FireServer(table.unpack(argsToUnpack, 1, argsToUnpack.n))
     end)
     if pcallSuccess then success = true
-    else
-        errMessage = tostring(pcallResult)
-        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: ERR_FIRE_" .. string.upper(remoteName) end
-        print("Error firing " .. remoteName .. ": " .. errMessage)
-        success = false
+    else errMessage = tostring(pcallResult)
+        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: ERR_REMOTE_" .. string.upper(remoteName) end
+        print("Error firing " .. remoteName .. ": " .. errMessage); success = false
     end
     return success
 end
@@ -241,7 +327,7 @@ end
 -- // Fungsi utama (Struktur Asli Dipertahankan) //
 local function runCycle()
 	local function updateStatus(text) 
-        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: " .. string.upper(text) end
+        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: " .. string.upper(text):gsub("_"," ") end
 	end
 	updateStatus("Reincarnating_Proc")
 	if not fireRemoteEnhanced("Reincarnate", "Base", {}) then scriptRunning = false; return end
@@ -253,7 +339,7 @@ local function runCycle()
 	local item1 = {"Nine Heavens Galaxy Water", "Buzhou Divine Flower", "Fusang Divine Tree", "Calm Cultivation Mat"}
 	for _, item in ipairs(item1) do
 		if not scriptRunning then return end 
-		updateStatus("Buying: " .. item:sub(1,15).."...")
+		updateStatus("Buying: " .. item:sub(1,12).."...")
 		if not fireRemoteEnhanced("BuyItem", "Base", item) then scriptRunning = false; return end
 		task.wait(timers.buyItemDelay) 
 	end
@@ -263,10 +349,10 @@ local function runCycle()
 	if not scriptRunning then return end
 	local function changeMap(name) return fireRemoteEnhanced("ChangeMap", "AreaEvents", name) end
 	if not changeMap("immortal") then scriptRunning = false; return end
-	task.wait(timers.changeMapDelay); updateStatus("Map: Immortal")
+	task.wait(timers.changeMapDelay); updateStatus("Map_Target: Immortal")
 	if not scriptRunning then return end
 	if not changeMap("chaos") then scriptRunning = false; return end
-	task.wait(timers.changeMapDelay); updateStatus("Map: Chaos")
+	task.wait(timers.changeMapDelay); updateStatus("Map_Target: Chaos")
 	if not scriptRunning then return end
 	updateStatus("Chaotic_Road_Proc")
 	if not fireRemoteEnhanced("ChaoticRoad", "AreaEvents", {}) then scriptRunning = false; return end
@@ -282,13 +368,13 @@ local function runCycle()
 	local item2 = {"Traceless Breeze Lotus", "Reincarnation World Destruction Black Lotus", "Ten Thousand Bodhi Tree"}
 	for _, item in ipairs(item2) do
 		if not scriptRunning then return end
-		updateStatus("Buying: " .. item:sub(1,15).."...")
+		updateStatus("Buying: " .. item:sub(1,12).."...")
 		if not fireRemoteEnhanced("BuyItem", "Base", item) then scriptRunning = false; return end
 		task.wait(timers.buyItemDelay)
 	end
 	if not scriptRunning then return end
 	if not changeMap("immortal") then scriptRunning = false; return end
-	task.wait(timers.changeMapDelay); updateStatus("Map: Immortal (Return)")
+	task.wait(timers.changeMapDelay); updateStatus("Map_Target: Immortal_Return")
 	if not scriptRunning then return end
 	if scriptRunning and not stopUpdateQi and not pauseUpdateQiTemporarily then
 		updateStatus("HiddenRemote_Proc (QI_Active)")
@@ -325,17 +411,15 @@ local function runCycle()
         task.wait(1)
     end
     if not scriptRunning then return end; stopUpdateQi = true 
-	updateStatus("Cycle_Complete_Restarting")
+	updateStatus("Cycle_Complete_Reinitializing")
 end
 
 -- Loop Latar Belakang (Dari skrip Anda)
 local function increaseAptitudeMineLoop_enhanced()
     while scriptRunning do 
-        fireRemoteEnhanced("IncreaseAptitude", "Base", {})
-        task.wait(timers.aptitudeMineInterval) 
+        fireRemoteEnhanced("IncreaseAptitude", "Base", {}); task.wait(timers.aptitudeMineInterval) 
         if not scriptRunning then break end
-        fireRemoteEnhanced("Mine", "Base", {})
-        task.wait() 
+        fireRemoteEnhanced("Mine", "Base", {}); task.wait() 
     end
 end
 local function updateQiLoop_enhanced()
@@ -349,29 +433,27 @@ end
 StartButton.MouseButton1Click:Connect(function()
     scriptRunning = not scriptRunning 
     if scriptRunning then
-        StartButton.Text = "SYSTEM_ACTIVE"
-        StartButton.BackgroundColor3 = Color3.fromRGB(200, 30, 30) -- Merah menyala
+        StartButton.Text = "[[ SYSTEM_PROCESSING ]]"
+        StartButton.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
         StartButton.TextColor3 = Color3.fromRGB(255,255,255)
-        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: INIT_SEQUENCE" end
+        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: SEQUENCE_INITIATED" end
         stopUpdateQi = false; pauseUpdateQiTemporarily = false
         if not aptitudeMineThread or coroutine.status(aptitudeMineThread) == "dead" then aptitudeMineThread = spawn(increaseAptitudeMineLoop_enhanced) end
         if not updateQiThread or coroutine.status(updateQiThread) == "dead" then updateQiThread = spawn(updateQiLoop_enhanced) end
         if not mainCycleThread or coroutine.status(mainCycleThread) == "dead" then
             mainCycleThread = spawn(function()
-                while scriptRunning do
-                    runCycle() 
+                while scriptRunning do runCycle() 
                     if not scriptRunning then break end
-                    if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: CYCLE_REINIT" end
+                    if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: CYCLE_REINITIALIZING..." end
                     task.wait(1) 
                 end
-                if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: SYSTEM_HALTED" end
-                StartButton.Text = "START SEQUENCE"
-                StartButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
-                StartButton.TextColor3 = Color3.fromRGB(220,220,220)
+                if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: SYSTEM_HALTED // STANDBY" end
+                StartButton.Text = "[[ ACTIVATE SEQUENCE ]]"
+                StartButton.BackgroundColor3 = Color3.fromRGB(40, 20, 60)
+                StartButton.TextColor3 = Color3.fromRGB(200,220,255)
             end)
         end
-    else
-        if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: HALT_REQUESTED" end
+    else if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "STATUS: DEACTIVATION_REQUESTED..." end
     end
 end)
 
@@ -386,152 +468,290 @@ ApplyTimersButton.MouseButton1Click:Connect(function()
         return success
     end
     local allTimersValid = true
-    allTimersValid = applyTextInput(timerElements.wait1m30sInput, "wait_1m30s_after_first_items", timerElements.Wait1m30sLabel) and allTimersValid
-    allTimersValid = applyTextInput(timerElements.wait40sInput, "alur_wait_40s_hide_qi", timerElements.Wait40sLabel) and allTimersValid
-    allTimersValid = applyTextInput(timerElements.comprehendInput, "comprehend_duration", timerElements.ComprehendLabel) and allTimersValid
-    allTimersValid = applyTextInput(timerElements.postComprehendQiInput, "post_comprehend_qi_duration", timerElements.PostComprehendQiLabel) and allTimersValid
+    allTimersValid = applyTextInput(timerElements.Wait1m30sInput, "wait_1m30s_after_first_items", timerElements.Wait1m30sLabel) and allTimersValid
+    allTimersValid = applyTextInput(timerElements.Wait40sInput, "alur_wait_40s_hide_qi", timerElements.Wait40sLabel) and allTimersValid
+    allTimersValid = applyTextInput(timerElements.ComprehendInput, "comprehend_duration", timerElements.ComprehendLabel) and allTimersValid
+    allTimersValid = applyTextInput(timerElements.PostComprehendQiInput, "post_comprehend_qi_duration", timerElements.PostComprehendQiLabel) and allTimersValid
     local originalStatus = StatusLabel.Text:gsub("STATUS: ", "")
     if allTimersValid then updateStatus("TIMER_CONFIG_APPLIED") else updateStatus("ERR_TIMER_INPUT_INVALID") end
     task.wait(2) 
-    if timerElements.Wait1m30sLabel then pcall(function() timerElements.Wait1m30sLabel.TextColor = Color3.fromRGB(180,180,200) end) end
-    if timerElements.Wait40sLabel then pcall(function() timerElements.Wait40sLabel.TextColor = Color3.fromRGB(180,180,200) end) end
-    if timerElements.ComprehendLabel then pcall(function() timerElements.ComprehendLabel.TextColor = Color3.fromRGB(180,180,200) end) end
-    if timerElements.PostComprehendQiLabel then pcall(function() timerElements.PostComprehendQiLabel.TextColor = Color3.fromRGB(180,180,200) end) end
+    if timerElements.Wait1m30sLabel then pcall(function() timerElements.Wait1m30sLabel.TextColor = Color3.fromRGB(190,190,220) end) end
+    if timerElements.Wait40sLabel then pcall(function() timerElements.Wait40sLabel.TextColor = Color3.fromRGB(190,190,220) end) end
+    if timerElements.ComprehendLabel then pcall(function() timerElements.ComprehendLabel.TextColor = Color3.fromRGB(190,190,220) end) end
+    if timerElements.PostComprehendQiLabel then pcall(function() timerElements.PostComprehendQiLabel.TextColor = Color3.fromRGB(190,190,220) end) end
     updateStatus(originalStatus) 
 end)
 
--- Tombol Minimize (Dari skrip Anda, disesuaikan)
+-- --- MODIFIED: Logika Tombol Minimize untuk Pop-up Petir ---
 MinimizeButton.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
-        MinimizeButton.Text = "□" -- Simbol maximize
-        originalFrameSize = Frame.Size -- Simpan ukuran saat ini sebelum minimize
-        Frame.Size = UDim2.fromOffset(Frame.Size.X.Offset, minimizedFrameHeight) 
-        for _, element in ipairs(elementsToToggleVisibility) do
-            if element and element.Parent then element.Visible = false end
-        end
-        UiTitleLabel.Position = UDim2.new(0, 10, 0, (minimizedFrameHeight - UiTitleLabel.TextBounds.Y)/2 - 5)
-        UiTitleLabel.TextSize = 20 -- Perkecil title saat minimize
-        MinimizeButton.Position = UDim2.new(1, -35, 0, (minimizedFrameHeight - MinimizeButton.AbsoluteSize.Y)/2 )
+        Frame.Visible = false -- Sembunyikan frame utama
+        MinimizedPopupFrame.Visible = true -- Tampilkan pop-up petir
+        -- Tombol Maximize di dalam MinimizedPopupFrame akan menangani pengembalian
     else
-        MinimizeButton.Text = "_" 
-        Frame.Size = originalFrameSize 
-        for _, element in ipairs(elementsToToggleVisibility) do
-            if element and element.Parent then element.Visible = true end
-        end
-        UiTitleLabel.Position = UDim2.new(0, 10, 0, 10)
-        UiTitleLabel.TextSize = 28 -- Kembalikan ukuran title
-        MinimizeButton.Position = UDim2.new(1, -35, 0, 10)
+        -- Ini seharusnya ditangani oleh tombol Maximize di dalam MinimizedPopupFrame
+        Frame.Visible = true
+        MinimizedPopupFrame.Visible = false
     end
 end)
 
--- --- ANIMASI UI BARU ---
-spawn(function() -- Animasi Latar Belakang Frame (Glitchy Background)
-    if not Frame or not Frame.Parent then return end
-    local baseColor = Color3.fromRGB(15, 15, 20)
-    local glitchColor1 = Color3.fromRGB(25, 20, 30)
-    local glitchColor2 = Color3.fromRGB(10, 10, 15)
-    local borderBase = Color3.fromRGB(255,0,0)
-    local borderGlitch = Color3.fromRGB(0,255,255)
+if timerElements.MaximizeButton then -- Pastikan tombol Maximize ada
+    timerElements.MaximizeButton.MouseButton1Click:Connect(function()
+        isMinimized = false -- Set status kembali ke tidak minimize
+        Frame.Visible = true
+        MinimizedPopupFrame.Visible = false
+    end)
+end
+-- --- END MODIFIED ---
 
+-- --- ANIMASI UI BARU (CANGGIH & PENUH ANIMASI DENGAN INSTANCE BARU) ---
+
+-- 1. Animasi Background Glitch "ZXHELL"
+spawn(function()
+    if not BackgroundGlitchText or not BackgroundGlitchText.Parent then return end
+    local hue = 0
     while ScreenGui and ScreenGui.Parent do
-        local r = math.random()
-        if r < 0.05 then -- Glitch intens
-            Frame.BackgroundColor3 = glitchColor1
-            Frame.BorderColor3 = borderGlitch
-            task.wait(0.05)
-            Frame.BackgroundColor3 = glitchColor2
-            task.wait(0.05)
-        elseif r < 0.2 then -- Glitch ringan
-            Frame.BackgroundColor3 = Color3.Lerp(baseColor, glitchColor1, math.random())
-            Frame.BorderColor3 = Color3.Lerp(borderBase, borderGlitch, math.random()*0.5)
-            task.wait(0.1)
-        else
-            Frame.BackgroundColor3 = baseColor
-            Frame.BorderColor3 = borderBase
-        end
-        -- Animasi border utama
-        local h,s,v = Color3.toHSV(Frame.BorderColor3)
-        Frame.BorderColor3 = Color3.fromHSV((h + 0.005)%1, s, v)
-        task.wait(0.1)
-    end
-end)
-
-spawn(function() -- Animasi UiTitleLabel (ZXHELL Glitch)
-    if not UiTitleLabel or not UiTitleLabel.Parent then return end
-    local originalText = UiTitleLabel.Text
-    local glitchChars = {"@", "#", "$", "%", "&", "*", "!", "?", "/", "\\", "|"}
-    local baseColor = Color3.fromRGB(255, 25, 25)
-    local originalPos = UiTitleLabel.Position
-
-    while ScreenGui and ScreenGui.Parent do
-        local r = math.random()
-        local newText = ""
-        local isGlitchingText = false
-
-        if r < 0.02 then -- Glitch Text Parah & Posisi
-            isGlitchingText = true
-            for i = 1, #originalText do
-                if math.random() < 0.7 then
-                    newText = newText .. glitchChars[math.random(#glitchChars)]
-                else
-                    newText = newText .. originalText:sub(i,i)
-                end
-            end
-            UiTitleLabel.Text = newText
-            UiTitleLabel.TextColor3 = Color3.fromRGB(math.random(200,255), math.random(0,50), math.random(0,50))
-            UiTitleLabel.Position = originalPos + UDim2.fromOffset(math.random(-2,2), math.random(-2,2))
-            UiTitleLabel.Rotation = math.random(-1,1) * 0.5
-            task.wait(0.07)
-        elseif r < 0.1 then -- Glitch Warna & Stroke
-            UiTitleLabel.TextColor3 = Color3.fromHSV(math.random(), 1, 1)
-            UiTitleLabel.TextStrokeColor3 = Color3.fromHSV(math.random(), 0.8, 1)
-            UiTitleLabel.TextStrokeTransparency = math.random() * 0.3
-            UiTitleLabel.Rotation = math.random(-1,1) * 0.2
-            task.wait(0.1)
-        else -- Kembali normal atau animasi warna halus
-            UiTitleLabel.Text = originalText
-            local h,s,v = Color3.toHSV(UiTitleLabel.TextColor3)
-            UiTitleLabel.TextColor3 = Color3.Lerp(UiTitleLabel.TextColor3, baseColor, 0.1)
-            UiTitleLabel.TextStrokeTransparency = 0.5
-            UiTitleLabel.TextStrokeColor3 = Color3.fromRGB(50,0,0)
-            UiTitleLabel.Position = originalPos
-            UiTitleLabel.Rotation = 0
-        end
-        
-        -- Animasi warna RGB halus jika tidak sedang glitch parah
-        if not isGlitchingText then
-             local hue = (tick()*0.1) % 1
-             local r_rgb, g_rgb, b_rgb = Color3.fromHSV(hue, 1, 1).R, Color3.fromHSV(hue, 1, 1).G, Color3.fromHSV(hue, 1, 1).B
-             r_rgb = math.min(1, r_rgb + 0.6) -- Dominasi merah
-             g_rgb = g_rgb * 0.4
-             b_rgb = b_rgb * 0.4
-             UiTitleLabel.TextColor3 = Color3.new(r_rgb, g_rgb, b_rgb)
+        hue = (hue + 0.001) % 1
+        BackgroundGlitchText.TextColor3 = Color3.fromHSV(hue, 0.5, 0.3) -- Warna glitch halus
+        BackgroundGlitchText.TextTransparency = 0.7 + math.sin(tick()*2) * 0.1 -- Efek pudar
+        if math.random() < 0.1 then -- Sesekali ganti posisi sedikit untuk efek glitch
+            BackgroundGlitchText.Position = UDim2.new(math.random(-5,5)/100, 0, math.random(-5,5)/100, 0)
         end
         task.wait(0.05)
     end
 end)
 
-spawn(function() -- Animasi Tombol (Subtle Pulse)
-    local buttonsToAnimate = {StartButton, ApplyTimersButton, MinimizeButton}
+-- 2. Animasi Frame Utama (Border dan Gradient)
+spawn(function()
+    if not Frame or not Frame.Parent then return end
+    local frameStroke = Frame:FindFirstChildOfClass("UIStroke")
+    local frameGradient = Frame:FindFirstChildOfClass("UIGradient")
+    local hue = 0
+    local angle = 0
     while ScreenGui and ScreenGui.Parent do
-        for _, btn in ipairs(buttonsToAnimate) do
-            if btn and btn.Parent then
-                local originalBorder = btn.BorderColor3
-                local originalBg = btn.BackgroundColor3
-                
-                -- Efek hover/pulse sederhana pada border
-                if btn.Name == "StartButton" and scriptRunning then
-                     btn.BorderColor3 = Color3.fromRGB(255,100,100) -- Merah lebih terang saat running
-                else
-                    local h,s,v = Color3.toHSV(originalBorder)
-                    btn.BorderColor3 = Color3.fromHSV(h,s, math.sin(tick()*2)*0.1 + 0.9) -- Pulse V
-                end
-            end
+        hue = (hue + 0.005) % 1
+        if frameStroke then frameStroke.Color = Color3.fromHSV(hue, 1, 1) end
+        if frameGradient then
+            angle = (angle + 1) % 360
+            frameGradient.Rotation = angle
+            -- Animasi warna gradient
+            local c1 = Color3.fromHSV((hue + 0.0)%1, 0.6, 0.2)
+            local c2 = Color3.fromHSV((hue + 0.1)%1, 0.7, 0.25)
+            frameGradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, c1),
+                ColorSequenceKeypoint.new(0.5, c2),
+                ColorSequenceKeypoint.new(1, c1)
+            })
         end
-        task.wait(0.1)
+        task.wait(0.03)
     end
 end)
+
+-- 3. Animasi Title UI "ZXHELL X ZEDLIST" dengan Petir
+local function createLightningBolt(parentFrame, startPos, endPos, color, thickness, duration)
+    local distance = (startPos - endPos).Magnitude
+    if distance == 0 then return end
+
+    local boltFrame = Instance.new("Frame")
+    boltFrame.Name = "LightningBoltSegment"
+    boltFrame.Parent = parentFrame
+    boltFrame.Size = UDim2.new(0, distance, 0, thickness)
+    boltFrame.Position = UDim2.fromOffset((startPos.X + endPos.X)/2, (startPos.Y + endPos.Y)/2)
+    boltFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    boltFrame.Rotation = math.atan2(endPos.Y - startPos.Y, endPos.X - startPos.X) * (180 / math.pi)
+    boltFrame.BackgroundColor3 = color
+    boltFrame.BorderSizePixel = 0
+    boltFrame.ZIndex = UiTitleLabel.ZIndex + 1 -- Di atas title
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, thickness/2)
+    corner.Parent = boltFrame
+
+    local tweenInfoAppear = TweenInfo.new(duration * 0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+    local tweenAppear = TweenService:Create(boltFrame, tweenInfoAppear, {BackgroundTransparency = 0.2})
+    local tweenInfoFade = TweenInfo.new(duration * 0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+    local tweenFade = TweenService:Create(boltFrame, tweenInfoFade, {BackgroundTransparency = 1})
+
+    tweenAppear:Play()
+    tweenAppear.Completed:Connect(function()
+        tweenFade:Play()
+    end)
+    Debris:AddItem(boltFrame, duration)
+end
+
+local function createBranchingLightning(parentFrame, originX, originY, numSegments, baseColor)
+    local currentPos = Vector2.new(originX, originY)
+    for i = 1, numSegments do
+        local angle = math.random() * 2 * math.pi
+        local length = math.random(15, 40)
+        local endPos = currentPos + Vector2.new(math.cos(angle) * length, math.sin(angle) * length)
+        
+        -- Batasi agar petir tidak terlalu keluar dari area title
+        endPos = Vector2.new(
+            math.clamp(endPos.X, UiTitleLabel.AbsolutePosition.X - 20, UiTitleLabel.AbsolutePosition.X + UiTitleLabel.AbsoluteSize.X + 20),
+            math.clamp(endPos.Y, UiTitleLabel.AbsolutePosition.Y - 10, UiTitleLabel.AbsolutePosition.Y + UiTitleLabel.AbsoluteSize.Y + 10)
+        )
+        
+        -- Konversi kembali ke posisi relatif terhadap Frame utama jika parentFrame adalah Frame utama
+        local relativeEndPos = endPos - parentFrame.AbsolutePosition
+        local relativeCurrentPos = currentPos - parentFrame.AbsolutePosition
+
+        createLightningBolt(parentFrame, relativeCurrentPos, relativeEndPos, baseColor, math.random(1,3), math.random(2,5)/10)
+        currentPos = endPos
+        if math.random() < 0.3 and i < numSegments then -- Peluang bercabang
+            createBranchingLightning(parentFrame, currentPos.X, currentPos.Y, math.random(1,2), baseColor)
+        end
+    end
+end
+
+
+spawn(function() -- Animasi UiTitleLabel (Termasuk Petir)
+    if not UiTitleLabel or not UiTitleLabel.Parent then return end
+    local originalText = UiTitleLabel.Text
+    local originalPos = UiTitleLabel.Position
+    local originalRot = UiTitleLabel.Rotation
+    local baseTextColor = UiTitleLabel.TextColor3
+    local lightningColors = {Color3.fromRGB(255,0,0), Color3.fromRGB(255,100,0), Color3.fromRGB(200,0,200)}
+
+    while ScreenGui and ScreenGui.Parent do
+        if not isMinimized then
+            UiTitleLabel.Position = originalPos
+            UiTitleLabel.Rotation = originalRot
+            UiTitleLabel.Text = originalText
+
+            -- Animasi warna RGB halus pada teks
+            local hue = (tick() * 0.3) % 1
+            local r, g, b = Color3.fromHSV(hue, 1, 1).R, Color3.fromHSV(hue, 1, 1).G, Color3.fromHSV(hue, 1, 1).B
+            r = math.min(1, r + 0.6); g = g * 0.4; b = b * 0.4; -- Dominasi merah
+            UiTitleLabel.TextColor3 = Color3.new(r, g, b)
+            
+            -- Efek Glitch pada TextStroke
+            if math.random() < 0.2 then
+                UiTitleLabel.TextStrokeColor3 = Color3.fromHSV(math.random(),1,1)
+                UiTitleLabel.TextStrokeTransparency = math.random()*0.4
+            else
+                UiTitleLabel.TextStrokeColor3 = Color3.fromRGB(50,0,0)
+                UiTitleLabel.TextStrokeTransparency = 0.3
+            end
+
+            -- Animasi Petir Menyambar di Title
+            if math.random() < 0.05 then -- Peluang petir muncul
+                 -- Titik acak di sekitar title (relatif terhadap Frame)
+                local titleAbsPos = UiTitleLabel.AbsolutePosition
+                local titleAbsSize = UiTitleLabel.AbsoluteSize
+                local frameAbsPos = Frame.AbsolutePosition
+
+                local startX = titleAbsPos.X + math.random(0, titleAbsSize.X)
+                local startY = titleAbsPos.Y + math.random(0, titleAbsSize.Y)
+                
+                createBranchingLightning(Frame, startX - frameAbsPos.X, startY - frameAbsPos.Y, math.random(3,5), lightningColors[math.random(#lightningColors)])
+            end
+        end
+        task.wait(0.05 + math.random()*0.05)
+    end
+end)
+
+
+-- 4. Animasi Tombol (Hover & Active)
+spawn(function() 
+    local buttons = {StartButton, ApplyTimersButton, MinimizeButton, timerElements.MaximizeButton}
+    local originalButtonProperties = {}
+
+    for _, btn in ipairs(buttons) do
+        if btn and btn.Parent then
+            originalButtonProperties[btn] = {
+                bg = btn.BackgroundColor3,
+                text = btn.TextColor3,
+                stroke = btn:FindFirstChildOfClass("UIStroke") and btn:FindFirstChildOfClass("UIStroke").Color or nil
+            }
+        end
+    end
+
+    while ScreenGui and ScreenGui.Parent do
+        local mouse = game:GetService("Players").LocalPlayer:GetMouse()
+        for _, btn in ipairs(buttons) do
+            if btn and btn.Parent and btn.Visible and btn:IsA("GuiButton") then
+                local isHovering = btn.AbsolutePosition.X <= mouse.X and mouse.X <= btn.AbsolutePosition.X + btn.AbsoluteSize.X and
+                                 btn.AbsolutePosition.Y <= mouse.Y and mouse.Y <= btn.AbsolutePosition.Y + btn.AbsoluteSize.Y
+                
+                local targetBg, targetText, targetStroke
+                local props = originalButtonProperties[btn]
+                if not props then goto continue_button_loop end
+
+                if btn == StartButton and scriptRunning then
+                    targetBg = Color3.fromRGB(255, 60, 60)
+                    targetText = Color3.fromRGB(255, 255, 255)
+                    targetStroke = Color3.fromRGB(255,150,150)
+                elseif isHovering then
+                    targetBg = props.bg:Lerp(Color3.new(1,1,1), 0.3)
+                    targetText = props.text:Lerp(Color3.new(0,0,0), 0.2)
+                    if props.stroke then targetStroke = props.stroke:Lerp(Color3.new(1,1,1), 0.5) end
+                else
+                    targetBg = props.bg
+                    targetText = props.text
+                    targetStroke = props.stroke
+                end
+                
+                btn.BackgroundColor3 = btn.BackgroundColor3:Lerp(targetBg, 0.25)
+                btn.TextColor3 = btn.TextColor3:Lerp(targetText, 0.25)
+                local strokeChild = btn:FindFirstChildOfClass("UIStroke")
+                if strokeChild and targetStroke then
+                    strokeChild.Color = strokeChild.Color:Lerp(targetStroke, 0.25)
+                end
+            end
+            ::continue_button_loop::
+        end
+        task.wait(0.03)
+    end
+end)
+
+-- 5. Animasi untuk MinimizedPopupFrame (Petir Merah Menyambar)
+spawn(function()
+    if not MinimizedPopupFrame or not MinimizedPopupFrame.Parent then return end
+    local mpfStroke = MinimizedPopupFrame:FindFirstChildOfClass("UIStroke")
+    local hue = 0
+    local lightningActive = false
+    local lightningFrames = {}
+
+    local function createPopupLightning()
+        for _, f in ipairs(lightningFrames) do if f and f.Parent then f:Destroy() end end
+        table.clear(lightningFrames)
+        if not MinimizedPopupFrame.Visible then return end
+
+        local numBolts = math.random(2,4)
+        for i=1, numBolts do
+            local bolt = Instance.new("Frame")
+            bolt.Parent = MinimizedPopupFrame
+            bolt.BorderSizePixel = 0
+            bolt.Size = UDim2.new(math.random(5,15)/100, 0, math.random(60,90)/100, 0) -- Persentase dari popup
+            bolt.Position = UDim2.new(math.random(10,80)/100, 0, math.random(5,20)/100, 0)
+            bolt.Rotation = math.random(-30,30)
+            bolt.BackgroundColor3 = Color3.fromRGB(255, math.random(100,200), math.random(100,200))
+            bolt.BackgroundTransparency = 0.2
+            local c = Instance.new("UICorner"); c.Parent = bolt;
+            table.insert(lightningFrames, bolt)
+            Debris:AddItem(bolt, 0.2)
+        end
+    end
+
+    while ScreenGui and ScreenGui.Parent do
+        if MinimizedPopupFrame.Visible then
+            hue = (hue + 0.05) % 1
+            MinimizedPopupFrame.BackgroundColor3 = Color3.fromHSV(hue, 1, 0.7) -- Warna dasar merah berdenyut
+            if mpfStroke then mpfStroke.Color = Color3.fromHSV((hue+0.5)%1, 1, 1) end
+            
+            if not lightningActive and math.random() < 0.2 then
+                lightningActive = true
+                createPopupLightning()
+                task.wait(0.2)
+                lightningActive = false
+            end
+        end
+        task.wait(0.05)
+    end
+end)
+
 -- --- END ANIMASI UI BARU ---
 
 -- BindToClose (Dari skrip Anda)
@@ -541,8 +761,7 @@ game:BindToClose(function()
     print("Pembersihan skrip selesai.")
 end)
 
--- Inisialisasi (Dari skrip Anda)
-print("Skrip Otomatisasi (Versi UI Canggih) Telah Dimuat.")
-task.wait(1)
-if ScreenGui and not ScreenGui.Parent then print("Mencoba memparentkan UI ke CoreGui lagi..."); setupCoreGuiParenting() end
-if StatusLabel and StatusLabel.Parent and StatusLabel.Text == "" then StatusLabel.Text = "STATUS: STANDBY" end
+-- Inisialisasi
+CreateAdvancedUI() -- Panggil fungsi pembuatan UI baru
+if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "SYSTEM STATUS: ONLINE // STANDBY" end
+print("Skrip Otomatisasi (Versi UI MAX ANIMATION) Telah Dimuat.")
