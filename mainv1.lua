@@ -1,20 +1,26 @@
--- Pastikan skrip ini adalah LocalScript dan ditempatkan di StarterPlayerScripts atau StarterGui.
+-- Tambahkan sedikit jeda di awal, kadang membantu di beberapa eksekutor
+task.wait(0.5)
 
-print("ZXHELL UI Script: Memulai eksekusi LocalScript...")
+-- Pastikan game sudah dimuat sepenuhnya
+if not game:IsLoaded() then
+    print("ZXHELL UI Script: Menunggu game dimuat...")
+    game.Loaded:Wait()
+end
+print("ZXHELL UI Script: Game telah dimuat. Memulai eksekusi LocalScript...")
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then
     warn("ZXHELL UI Script: LocalPlayer tidak ditemukan. Skrip tidak akan berjalan.")
-    return -- Hentikan skrip jika tidak ada LocalPlayer (misalnya, dijalankan di server)
+    return 
 end
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui") -- Tetap coba PlayerGui dulu
 
 print("ZXHELL UI Script: LocalPlayer dan PlayerGui ditemukan.")
 
 -- // UI FRAME //
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CyberpunkUI_Optimized_AutoNav" -- Nama diubah sedikit untuk menandakan versi
+ScreenGui.Name = "CyberpunkUI_Optimized_AutoNav_Arc" 
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 ScreenGui.ResetOnSpawn = false 
 ScreenGui.Enabled = true 
@@ -50,7 +56,7 @@ local timerInputElements = {}
 
 -- --- Variabel Kontrol dan State ---
 local scriptRunning = false
-local stopUpdateQi = true -- Mulai dengan true, karena kondisi map/area belum tentu terpenuhi
+local stopUpdateQi = true 
 local mainCycleThread = nil
 local updateQiThread = nil
 
@@ -62,7 +68,7 @@ local minimizedZLabel = Instance.new("TextLabel")
 minimizedZLabel.Name = "MinimizedZLabelButton" 
 minimizedZLabel.Active = true 
 minimizedZLabel.Visible = false 
-local MinimizedClickDetector = Instance.new("ClickDetector") -- Untuk klik pada TextLabel
+local MinimizedClickDetector = Instance.new("ClickDetector")
 MinimizedClickDetector.Parent = minimizedZLabel
 
 
@@ -76,46 +82,63 @@ local timers = {
     comprehend_duration = 20,
     post_comprehend_qi_duration = 30,
     update_qi_interval = 1,
-    genericShortDelay = 0.5, -- Tidak banyak digunakan di flow ini, tapi bisa untuk masa depan
-    area_setup_delay = 1 -- Delay setelah mencoba masuk area khusus
+    genericShortDelay = 0.5,
+    area_setup_delay = 1 
 }
 
 -- // Parent UI ke player //
 local function setupGuiParenting()
-    if not (ScreenGui and PlayerGui) then
-        warn("ZXHELL UI Script: ScreenGui atau PlayerGui nil saat setupGuiParenting.")
+    if not ScreenGui then
+        warn("ZXHELL UI Script: ScreenGui nil saat setupGuiParenting.")
         return
     end
 
-    ScreenGui.Parent = PlayerGui 
-    print("ZXHELL UI Script: ScreenGui diparentkan ke PlayerGui.")
+    -- Opsi 1: PlayerGui (Standar, coba ini dulu)
+    if PlayerGui then
+        ScreenGui.Parent = PlayerGui
+        print("ZXHELL UI Script: ScreenGui diparentkan ke PlayerGui.")
+    else
+        -- Opsi 2: CoreGui (Alternatif untuk eksekutor jika PlayerGui bermasalah)
+        -- Hapus komentar di bawah ini dan beri komentar pada bagian PlayerGui di atas jika perlu.
+        -- local CoreGui = game:GetService("CoreGui")
+        -- if CoreGui then
+        --     ScreenGui.Parent = CoreGui
+        --     print("ZXHELL UI Script: PlayerGui tidak ditemukan, ScreenGui diparentkan ke CoreGui.")
+        -- else
+        --     warn("ZXHELL UI Script: PlayerGui dan CoreGui tidak ditemukan. UI tidak dapat diparentkan.")
+        --     return
+        -- end
+        warn("ZXHELL UI Script: PlayerGui nil, UI mungkin tidak tampil dengan benar.")
+        return
+    end
 
-    if not Frame.Parent or Frame.Parent ~= ScreenGui then Frame.Parent = ScreenGui end
-    UiTitleLabel.Parent = Frame
-    StartButton.Parent = Frame
-    StatusLabel.Parent = Frame
-    MinimizeButton.Parent = Frame
-    TimerTitleLabel.Parent = Frame
-    ApplyTimersButton.Parent = Frame
-    minimizedZLabel.Parent = Frame 
 
-    print("ZXHELL UI Script: Semua elemen UI utama telah diparentkan ke Frame.")
+    if Frame and ScreenGui and (not Frame.Parent or Frame.Parent ~= ScreenGui) then Frame.Parent = ScreenGui end
+    if UiTitleLabel and Frame then UiTitleLabel.Parent = Frame end
+    if StartButton and Frame then StartButton.Parent = Frame end
+    if StatusLabel and Frame then StatusLabel.Parent = Frame end
+    if MinimizeButton and Frame then MinimizeButton.Parent = Frame end
+    if TimerTitleLabel and Frame then TimerTitleLabel.Parent = Frame end
+    if ApplyTimersButton and Frame then ApplyTimersButton.Parent = Frame end
+    if minimizedZLabel and Frame then minimizedZLabel.Parent = Frame end
+
+    print("ZXHELL UI Script: Semua elemen UI utama telah diparentkan.")
 end
 
 setupGuiParenting()
 
 
--- // Desain UI (Sebagian besar sama dengan versi sebelumnya) //
+-- // Desain UI (Sebagian besar sama) //
 Frame.Size = originalFrameSize
 Frame.Position = UDim2.new(0.5, -Frame.Size.X.Offset/2, 0.5, -Frame.Size.Y.Offset/2)
 Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 Frame.BorderSizePixel = 2
 Frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
 Frame.ClipsDescendants = true
-local UICorner = Instance.new("UICorner"); UICorner.CornerRadius = UDim.new(0, 10); UICorner.Parent = Frame
+local UICorner = Instance.new("UICorner"); UICorner.CornerRadius = UDim.new(0, 10); if Frame then UICorner.Parent = Frame end
 
 UiTitleLabel.Size = UDim2.new(1, -20, 0, 35); UiTitleLabel.Position = UDim2.new(0, 10, 0, 10)
-UiTitleLabel.Font = Enum.Font.SourceSansSemibold; UiTitleLabel.Text = "ZXHELL (AUTONAV V3)" 
+UiTitleLabel.Font = Enum.Font.SourceSansSemibold; UiTitleLabel.Text = "ZXHELL (ARCEUS_FIX)" 
 UiTitleLabel.TextColor3 = Color3.fromRGB(255, 25, 25); UiTitleLabel.TextScaled = false
 UiTitleLabel.TextSize = 22; UiTitleLabel.TextXAlignment = Enum.TextXAlignment.Center
 UiTitleLabel.BackgroundTransparency = 1; UiTitleLabel.ZIndex = 2 
@@ -128,37 +151,37 @@ StartButton.Text = "START SEQUENCE"; StartButton.Font = Enum.Font.SourceSansBold
 StartButton.TextSize = 16; StartButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 StartButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20); StartButton.BorderSizePixel = 1
 StartButton.BorderColor3 = Color3.fromRGB(255, 50, 50); StartButton.ZIndex = 2
-local StartButtonCorner = Instance.new("UICorner"); StartButtonCorner.CornerRadius = UDim.new(0, 5); StartButtonCorner.Parent = StartButton
+local StartButtonCorner = Instance.new("UICorner"); StartButtonCorner.CornerRadius = UDim.new(0, 5); if StartButton then StartButtonCorner.Parent = StartButton end
 
 StatusLabel.Size = UDim2.new(1, -40, 0, 45); StatusLabel.Position = UDim2.new(0, 20, 0, yOffsetForTitle + 45)
 StatusLabel.Text = "STATUS: STANDBY"; StatusLabel.Font = Enum.Font.SourceSansLight
 StatusLabel.TextSize = 14; StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
 StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 30); StatusLabel.TextWrapped = true
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left; StatusLabel.BorderSizePixel = 0; StatusLabel.ZIndex = 2
-local StatusLabelCorner = Instance.new("UICorner"); StatusLabelCorner.CornerRadius = UDim.new(0, 5); StatusLabelCorner.Parent = StatusLabel
+local StatusLabelCorner = Instance.new("UICorner"); StatusLabelCorner.CornerRadius = UDim.new(0, 5); if StatusLabel then StatusLabelCorner.Parent = StatusLabel end
 
 local yOffsetForTimers = yOffsetForTitle + 100
 
 TimerTitleLabel.Size = UDim2.new(1, -40, 0, 20); TimerTitleLabel.Position = UDim2.new(0, 20, 0, yOffsetForTimers)
-TimerTitleLabel.Text = "// TIMER_CONFIG_AUTONAV"; TimerTitleLabel.Font = Enum.Font.Code
+TimerTitleLabel.Text = "// TIMER_CONFIG_ARCEUS"; TimerTitleLabel.Font = Enum.Font.Code
 TimerTitleLabel.TextSize = 14; TimerTitleLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
 TimerTitleLabel.BackgroundTransparency = 1; TimerTitleLabel.TextXAlignment = Enum.TextXAlignment.Left; TimerTitleLabel.ZIndex = 2
 
 local function createTimerInput(name, yPos, labelText, initialValue)
-    local label = Instance.new("TextLabel"); label.Name = name .. "Label"; label.Parent = Frame
+    local label = Instance.new("TextLabel"); label.Name = name .. "Label"; if Frame then label.Parent = Frame end
     label.Size = UDim2.new(0.65, -25, 0, 20); label.Position = UDim2.new(0, 20, 0, yPos + yOffsetForTimers)
     label.Text = labelText .. ":"; label.Font = Enum.Font.SourceSans; label.TextSize = 11
     label.TextColor3 = Color3.fromRGB(180, 180, 200); label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left; label.ZIndex = 2
     timerInputElements[name .. "Label"] = label
-    local input = Instance.new("TextBox"); input.Name = name .. "Input"; input.Parent = Frame
+    local input = Instance.new("TextBox"); input.Name = name .. "Input"; if Frame then input.Parent = Frame end
     input.Size = UDim2.new(0.35, -25, 0, 20); input.Position = UDim2.new(0.65, 5, 0, yPos + yOffsetForTimers)
     input.Text = tostring(initialValue); input.PlaceholderText = "sec"; input.Font = Enum.Font.SourceSansSemibold
     input.TextSize = 11; input.TextColor3 = Color3.fromRGB(255, 255, 255)
     input.BackgroundColor3 = Color3.fromRGB(30, 30, 40); input.ClearTextOnFocus = false
     input.BorderColor3 = Color3.fromRGB(100, 100, 120); input.BorderSizePixel = 1; input.ZIndex = 2
     timerInputElements[name .. "Input"] = input
-    local InputCorner = Instance.new("UICorner"); InputCorner.CornerRadius = UDim.new(0, 3); InputCorner.Parent = input
+    local InputCorner = Instance.new("UICorner"); InputCorner.CornerRadius = UDim.new(0, 3); if input then InputCorner.Parent = input end
     return input
 end
 
@@ -177,13 +200,13 @@ ApplyTimersButton.Text = "APPLY_TIMERS"; ApplyTimersButton.Font = Enum.Font.Sour
 ApplyTimersButton.TextSize = 14; ApplyTimersButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 ApplyTimersButton.BackgroundColor3 = Color3.fromRGB(30, 80, 30); ApplyTimersButton.BorderColor3 = Color3.fromRGB(80, 255, 80)
 ApplyTimersButton.BorderSizePixel = 1; ApplyTimersButton.ZIndex = 2
-local ApplyButtonCorner = Instance.new("UICorner"); ApplyButtonCorner.CornerRadius = UDim.new(0, 5); ApplyButtonCorner.Parent = ApplyTimersButton
+local ApplyButtonCorner = Instance.new("UICorner"); ApplyButtonCorner.CornerRadius = UDim.new(0, 5); if ApplyTimersButton then ApplyButtonCorner.Parent = ApplyTimersButton end
 
 MinimizeButton.Size = UDim2.new(0, 25, 0, 25); MinimizeButton.Position = UDim2.new(1, -35, 0, 10)
 MinimizeButton.Text = "_"; MinimizeButton.Font = Enum.Font.SourceSansBold; MinimizeButton.TextSize = 20
 MinimizeButton.TextColor3 = Color3.fromRGB(180, 180, 180); MinimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
 MinimizeButton.BorderColor3 = Color3.fromRGB(100,100,120); MinimizeButton.BorderSizePixel = 1; MinimizeButton.ZIndex = 3 
-local MinimizeButtonCorner = Instance.new("UICorner"); MinimizeButtonCorner.CornerRadius = UDim.new(0, 3); MinimizeButtonCorner.Parent = MinimizeButton
+local MinimizeButtonCorner = Instance.new("UICorner"); MinimizeButtonCorner.CornerRadius = UDim.new(0, 3); if MinimizeButton then MinimizeButtonCorner.Parent = MinimizeButton end
 
 minimizedZLabel.Size = UDim2.new(1, 0, 1, 0); minimizedZLabel.Position = UDim2.new(0,0,0,0)
 minimizedZLabel.Text = "Z"; minimizedZLabel.Font = Enum.Font.SourceSansBold; minimizedZLabel.TextScaled = false
@@ -210,6 +233,7 @@ end
 
 local TweenService = game:GetService("TweenService")
 local function animateFrame(targetSize, targetPosition, callback)
+    if not Frame or not Frame.Parent then return end -- Tambahan guard clause
     local info = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local properties = {Size = targetSize, Position = targetPosition}
     local tween = TweenService:Create(Frame, info, properties)
@@ -218,6 +242,8 @@ local function animateFrame(targetSize, targetPosition, callback)
 end
 
 local function toggleMinimize()
+    if not Frame or not Frame.Parent or not ScreenGui or not ScreenGui.Parent or not minimizedZLabel then return end -- Guard clause
+
     isMinimized = not isMinimized
     if isMinimized then
         for _, element in ipairs(elementsToToggleVisibility) do
@@ -226,6 +252,11 @@ local function toggleMinimize()
         minimizedZLabel.Visible = true
         local screenWidth = ScreenGui.AbsoluteSize.X
         local screenHeight = ScreenGui.AbsoluteSize.Y
+        if screenWidth == 0 or screenHeight == 0 then -- Jika AbsoluteSize belum siap
+            screenWidth = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.X) or 1024
+            screenHeight = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y) or 768
+            print("ZXHELL UI: ScreenGui.AbsoluteSize adalah nol, menggunakan ViewportSize sebagai fallback.")
+        end
         local targetX = screenWidth - minimizedFrameSize.X.Offset - (0.02 * screenWidth) 
         local targetY = screenHeight - minimizedFrameSize.Y.Offset - (0.02 * screenHeight)
         
@@ -239,7 +270,7 @@ local function toggleMinimize()
             for _, element in ipairs(elementsToToggleVisibility) do
                 if element and element.Parent then element.Visible = true end
             end
-            Frame.Draggable = true
+            if Frame then Frame.Draggable = true end
         end)
     end
 end
@@ -251,6 +282,7 @@ if MinimizeButton then
         print("ZXHELL UI: MinimizeButton DIKLIK!")
         toggleMinimize()
     end)
+    print("ZXHELL UI: MinimizeButton.MouseButton1Click terhubung.")
 else warn("ZXHELL UI: MinimizeButton adalah nil sebelum menghubungkan event.") end
 
 if MinimizedClickDetector then
@@ -258,6 +290,7 @@ if MinimizedClickDetector then
          print("ZXHELL UI: minimizedZLabel (via ClickDetector) DIKLIK!")
         toggleMinimize()
     end)
+    print("ZXHELL UI: MinimizedClickDetector.MouseButton1Click terhubung.")
 else warn("ZXHELL UI: MinimizedClickDetector adalah nil.") end
 
 
@@ -267,31 +300,60 @@ local function waitSeconds(sec)
     repeat task.wait() until not scriptRunning or tick() - startTime >= sec
 end
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RemoteEventsFolder_Path = "RemoteEvents"
+local AreaEventsFolder_Name = "AreaEvents"
+
 local function fireRemoteEnhanced(remoteName, pathType, ...)
-    local argsToUnpack = table.pack(...); local remoteEventFolder; local success = false; local errMessage = "Unknown error"
+    local argsToUnpack = table.pack(...)
+    local remoteEventFolder
+    local success = false
+    local errMessage = "Unknown error"
+
     local pcallSuccess, pcallResult = pcall(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local RemoteEventsFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10) 
-        if not RemoteEventsFolder then warn("Folder RemoteEvents tidak ditemukan di ReplicatedStorage"); return false end
+        local rsExists = ReplicatedStorage -- Sudah di-cache di atas
+        if not rsExists then
+            warn("ZXHELL UI: ReplicatedStorage service not found.")
+            return false
+        end
+
+        local mainRemoteFolder = rsExists:WaitForChild(RemoteEventsFolder_Path, 15) -- Timeout dinaikkan sedikit
+        if not mainRemoteFolder then 
+            warn("ZXHELL UI: Folder '"..RemoteEventsFolder_Path.."' tidak ditemukan di ReplicatedStorage setelah 15 detik.")
+            return false 
+        end
 
         if pathType == "AreaEvents" then
-            remoteEventFolder = RemoteEventsFolder:WaitForChild("AreaEvents", 10)
-            if not remoteEventFolder then warn("Folder AreaEvents tidak ditemukan di RemoteEvents"); return false end
+            remoteEventFolder = mainRemoteFolder:WaitForChild(AreaEventsFolder_Name, 15)
+            if not remoteEventFolder then 
+                warn("ZXHELL UI: Folder '"..AreaEventsFolder_Name.."' tidak ditemukan di "..mainRemoteFolder.Name.." setelah 15 detik.")
+                return false 
+            end
         else
-            remoteEventFolder = RemoteEventsFolder
+            remoteEventFolder = mainRemoteFolder
         end
-        local remote = remoteEventFolder:WaitForChild(remoteName, 10)
-        if not remote then warn("RemoteEvent '"..remoteName.."' tidak ditemukan di "..remoteEventFolder.Name); return false end
+
+        local remote = remoteEventFolder:WaitForChild(remoteName, 15)
+        if not remote then 
+            warn("ZXHELL UI: RemoteEvent '"..remoteName.."' tidak ditemukan di "..remoteEventFolder.Name.." setelah 15 detik.")
+            return false 
+        end
 
         remote:FireServer(table.unpack(argsToUnpack, 1, argsToUnpack.n))
         return true 
     end)
+
     if pcallSuccess and pcallResult then 
         success = true 
     else 
         errMessage = tostring(pcallResult)
-        updateStatus("ERR_FIRE_" .. string.upper(remoteName))
-        warn("Error firing " .. remoteName .. ": " .. errMessage); 
+        if not pcallSuccess then -- Error dari pcall itu sendiri
+            updateStatus("ERR_PCALL_FIRE_" .. string.upper(remoteName))
+            warn("ZXHELL UI: Pcall error firing " .. remoteName .. ": " .. errMessage)
+        else -- pcallResult adalah false dari dalam fungsi
+            updateStatus("ERR_LOGIC_FIRE_" .. string.upper(remoteName))
+            warn("ZXHELL UI: Logic error firing " .. remoteName .. ". Pesan internal: " .. (errMessage or "Tidak ada pesan spesifik"))
+        end
         success = false 
     end
     return success
@@ -305,7 +367,6 @@ local function runCycle()
     if not fireRemoteEnhanced("Reincarnate", "Base", {}) then scriptRunning = false; updateStatus("ERR_REINCARNATE_FAILED"); return end
     waitSeconds(timers.reincarnate_delay); if not scriptRunning then return end
 
-    -- >>> FASE: PERSIAPAN QI SEBELUM COMPREHEND (Map Immortal + Area Hidden) <<<
     updateStatus("NAVIGATING_IMMORTAL_MAP_FOR_PRE_QI"); 
     if not fireRemoteEnhanced("ChangeMap", "AreaEvents", "immortal") then 
         scriptRunning = false; updateStatus("ERR_NAV_IMMORTAL_PRE_QI"); return 
@@ -316,24 +377,21 @@ local function runCycle()
     if not fireRemoteEnhanced("EnsureHiddenArea", "AreaEvents", {}) then 
         updateStatus("ERR_ENTER_HIDDEN_PRE_QI"); 
         waitSeconds(timers.area_setup_delay); 
-        return -- Gagal masuk area, siklus ini batal untuk QI
+        return 
     end
     waitSeconds(timers.area_setup_delay); if not scriptRunning then return end
     updateStatus("IN_HIDDEN_AREA_PRE_QI_OKAY")
 
-    stopUpdateQi = false -- AKTIFKAN UpdateQi
+    stopUpdateQi = false 
     updateStatus("PRE_COMP_QI_UPDATE_ACTIVE (" .. timers.pre_comprehend_qi_duration .. "s)");
     local preComprehendQiStartTime = tick()
     while scriptRunning and (tick() - preComprehendQiStartTime < timers.pre_comprehend_qi_duration) do
-        -- stopUpdateQi bisa di-set false oleh external logic jika perlu, tapi normalnya loop ini selesai by time
         updateStatus(string.format("PRE_COMP_QI_RUNNING... %ds Left", math.floor(timers.pre_comprehend_qi_duration - (tick() - preComprehendQiStartTime))))
         task.wait(1)
     end
-    stopUpdateQi = true -- NONAKTIFKAN UpdateQi sebelum fase berikutnya
+    stopUpdateQi = true 
     if not scriptRunning then return end
 
-
-    -- >>> FASE: COMPREHEND (Map Immortal + Area Forbidden) <<<
     updateStatus("NAVIGATING_IMMORTAL_MAP_FOR_COMPREHEND"); 
     if not fireRemoteEnhanced("ChangeMap", "AreaEvents", "immortal") then 
         scriptRunning = false; updateStatus("ERR_NAV_IMMORTAL_COMP"); return 
@@ -344,7 +402,7 @@ local function runCycle()
     if not fireRemoteEnhanced("EnsureForbiddenArea", "AreaEvents", {}) then 
         updateStatus("ERR_ENTER_FORBIDDEN_COMP"); 
         waitSeconds(timers.area_setup_delay);
-        return -- Gagal masuk area, siklus ini batal untuk Comprehend
+        return 
     end
     waitSeconds(timers.area_setup_delay); if not scriptRunning then return end
     updateStatus("IN_FORBIDDEN_AREA_COMP_OKAY")
@@ -359,8 +417,6 @@ local function runCycle()
         task.wait(1) 
     end; if not scriptRunning then return end; updateStatus("COMPREHEND_PROCESS_COMPLETE")
 
-
-    -- >>> FASE: PERSIAPAN QI SETELAH COMPREHEND (Map Immortal + Area Hidden) <<<
     updateStatus("NAVIGATING_IMMORTAL_MAP_FOR_POST_QI"); 
     if not fireRemoteEnhanced("ChangeMap", "AreaEvents", "immortal") then 
         scriptRunning = false; updateStatus("ERR_NAV_IMMORTAL_POST_QI"); return 
@@ -371,31 +427,30 @@ local function runCycle()
     if not fireRemoteEnhanced("EnsureHiddenArea", "AreaEvents", {}) then 
         updateStatus("ERR_ENTER_HIDDEN_POST_QI"); 
         waitSeconds(timers.area_setup_delay);
-        return -- Gagal masuk area, siklus ini batal untuk QI
+        return 
     end
     waitSeconds(timers.area_setup_delay); if not scriptRunning then return end
     updateStatus("IN_HIDDEN_AREA_POST_QI_OKAY")
 
-    stopUpdateQi = false -- AKTIFKAN UpdateQi lagi
+    stopUpdateQi = false 
     updateStatus("POST_COMP_QI_UPDATE_ACTIVE (" .. timers.post_comprehend_qi_duration .. "s)");
     local postComprehendQiStartTime = tick()
     while scriptRunning and (tick() - postComprehendQiStartTime < timers.post_comprehend_qi_duration) do
         updateStatus(string.format("POST_COMP_QI_RUNNING... %ds Left", math.floor(timers.post_comprehend_qi_duration - (tick() - postComprehendQiStartTime))))
         task.wait(1)
     end
-    stopUpdateQi = true -- NONAKTIFKAN UpdateQi setelah selesai
+    stopUpdateQi = true 
     if not scriptRunning then return end
     
-    updateStatus("CYCLE_AUTONAV_COMPLETE_RESTARTING")
+    updateStatus("CYCLE_AUTONAV_ARCEUS_COMPLETE_RESTARTING")
 end
 
 
 local function updateQiLoop_enhanced()
     while scriptRunning do
         if not stopUpdateQi then 
-            -- Tidak perlu cek map/area di sini, runCycle sudah memastikan kondisi
             if not fireRemoteEnhanced("UpdateQi", "Base", {}) then
-                -- updateStatus("WARN_UPDATE_QI_REMOTE_FAIL") -- Opsional: status jika remote UpdateQi gagal
+                -- updateStatus("WARN_UPDATE_QI_REMOTE_FAIL") 
             end
         end
         local interval = timers.update_qi_interval; if interval <= 0 then interval = 0.01 end
@@ -409,7 +464,7 @@ if StartButton then
         scriptRunning = not scriptRunning
         if scriptRunning then
             StartButton.Text = "SYSTEM_ACTIVE"; StartButton.BackgroundColor3 = Color3.fromRGB(200, 30, 30); StartButton.TextColor3 = Color3.fromRGB(255,255,255)
-            updateStatus("INIT_AUTONAV_SEQUENCE"); 
+            updateStatus("INIT_AUTONAV_ARCEUS_SEQ"); 
             stopUpdateQi = true 
             
             if not updateQiThread or coroutine.status(updateQiThread) == "dead" then 
@@ -420,18 +475,19 @@ if StartButton then
                     while scriptRunning do 
                         runCycle(); 
                         if not scriptRunning then break end; 
-                        updateStatus("CYCLE_AUTONAV_REINIT"); 
+                        updateStatus("CYCLE_AUTONAV_ARCEUS_REINIT"); 
                         task.wait(1) 
                     end
-                    updateStatus("SYSTEM_AUTONAV_HALTED"); StartButton.Text = "START SEQUENCE"; StartButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
+                    updateStatus("SYSTEM_AUTONAV_ARCEUS_HALTED"); StartButton.Text = "START SEQUENCE"; StartButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
                     StartButton.TextColor3 = Color3.fromRGB(220,220,220); 
                     stopUpdateQi = true 
                 end)
             end
         else 
-            updateStatus("HALT_AUTONAV_REQUESTED") 
+            updateStatus("HALT_AUTONAV_ARCEUS_REQUESTED") 
         end
     end)
+    print("ZXHELL UI: StartButton.MouseButton1Click terhubung.")
 else warn("ZXHELL UI: StartButton adalah nil sebelum menghubungkan event.") end
 
 if ApplyTimersButton then
@@ -453,7 +509,7 @@ if ApplyTimersButton then
         allTimersValid = applyTextInput(timerInputElements.areaSetupDelayInput, "area_setup_delay", timerInputElements.AreaSetupDelayLabel) and allTimersValid
 
         local originalStatus = StatusLabel.Text:gsub("STATUS: ", "")
-        if allTimersValid then updateStatus("TIMER_CONFIG_AUTONAV_APPLIED") else updateStatus("ERR_TIMER_AUTONAV_INPUT_INVALID") end
+        if allTimersValid then updateStatus("TIMER_CONFIG_ARCEUS_APPLIED") else updateStatus("ERR_TIMER_ARCEUS_INPUT_INVALID") end
         task.wait(2)
         local labelsToReset = {
             timerInputElements.ReincarnateDelayLabel, timerInputElements.ChangeMapDelayLabel, 
@@ -464,20 +520,27 @@ if ApplyTimersButton then
         for _, lbl in ipairs(labelsToReset) do if lbl then pcall(function() lbl.TextColor3 = Color3.fromRGB(180,180,200) end) end end
         updateStatus(originalStatus)
     end)
+    print("ZXHELL UI: ApplyTimersButton.MouseButton1Click terhubung.")
 else warn("ZXHELL UI: ApplyTimersButton adalah nil sebelum menghubungkan event.") end
 
 
--- --- ANIMASI UI (Sama seperti sebelumnya, tidak diubah) ---
-task.spawn(function() if not Frame or not Frame.Parent then return end; local bC=Color3.fromRGB(15,15,20);local g1=Color3.fromRGB(25,20,30);local g2=Color3.fromRGB(10,10,15);local brB=Color3.fromRGB(255,0,0);local brG=Color3.fromRGB(0,255,255);while ScreenGui and ScreenGui.Parent do if not isMinimized then local r=math.random();if r<0.05 then Frame.BackgroundColor3=g1;Frame.BorderColor3=brG;task.wait(0.05);Frame.BackgroundColor3=g2;task.wait(0.05) elseif r<0.2 then Frame.BackgroundColor3=Color3.Lerp(bC,g1,math.random());Frame.BorderColor3=Color3.Lerp(brB,brG,math.random()*0.5);task.wait(0.1) else Frame.BackgroundColor3=bC;Frame.BorderColor3=brB end local h,s,v=Color3.toHSV(Frame.BorderColor3);Frame.BorderColor3=Color3.fromHSV((h+0.005)%1,s,v) else Frame.BackgroundColor3=bC;Frame.BorderColor3=brB end task.wait(0.05) end end)
-task.spawn(function() if not UiTitleLabel or not UiTitleLabel.Parent then return end;local oT=UiTitleLabel.Text;local gCs={"@","#","$","%","&","*","!","?","/","\\","|_"};local bC=Color3.fromRGB(255,25,25);local oP=UiTitleLabel.Position;while ScreenGui and ScreenGui.Parent do if not isMinimized then local r=math.random();local iGT=false;if r<0.02 then iGT=true;local nT="";for i=1,#oT do if math.random()<0.7 then nT=nT..gCs[math.random(#gCs)] else nT=nT..oT:sub(i,i) end end UiTitleLabel.Text=nT;UiTitleLabel.TextColor3=Color3.fromRGB(math.random(200,255),math.random(0,50),math.random(0,50));UiTitleLabel.Position=oP+UDim2.fromOffset(math.random(-2,2),math.random(-2,2));UiTitleLabel.Rotation=math.random(-1,1)*0.5;task.wait(0.07) elseif r<0.1 then UiTitleLabel.TextColor3=Color3.fromHSV(math.random(),1,1);UiTitleLabel.TextStrokeColor3=Color3.fromHSV(math.random(),0.8,1);UiTitleLabel.TextStrokeTransparency=math.random()*0.3;UiTitleLabel.Rotation=math.random(-1,1)*0.2;task.wait(0.1) else UiTitleLabel.Text=oT;UiTitleLabel.TextStrokeTransparency=0.5;UiTitleLabel.TextStrokeColor3=Color3.fromRGB(50,0,0);UiTitleLabel.Position=oP;UiTitleLabel.Rotation=0 end if not iGT then local h=(tick()*0.1)%1;local rR,gR,bR=Color3.fromHSV(h,1,1).R,Color3.fromHSV(h,1,1).G,Color3.fromHSV(h,1,1).B;rR=math.min(1,rR+0.6);gR=gR*0.4;bR=bR*0.4;UiTitleLabel.TextColor3=Color3.new(rR,gR,bR) end end task.wait(0.05) end end)
-task.spawn(function() local bts={StartButton,ApplyTimersButton,MinimizeButton};while ScreenGui and ScreenGui.Parent do if not isMinimized then for _,btn in ipairs(bts) do if btn and btn.Parent then local oB=btn.BorderColor3;if btn.Name=="StartButton" and scriptRunning then btn.BorderColor3=Color3.fromRGB(255,100,100) else local h,s,v=Color3.toHSV(oB);btn.BorderColor3=Color3.fromHSV(h,s,math.sin(tick()*2)*0.1+0.9) end end end end task.wait(0.1) end end)
-task.spawn(function() while ScreenGui and ScreenGui.Parent do if isMinimized and minimizedZLabel.Visible then local h=(tick()*0.2)%1;minimizedZLabel.TextColor3=Color3.fromHSV(h,1,1) end task.wait(0.05) end end)
+-- --- ANIMASI UI (Tidak diubah) ---
+task.spawn(function() while ScreenGui and ScreenGui.Parent do if not isMinimized and Frame and Frame.Parent then local bC=Color3.fromRGB(15,15,20);local g1=Color3.fromRGB(25,20,30);local g2=Color3.fromRGB(10,10,15);local brB=Color3.fromRGB(255,0,0);local brG=Color3.fromRGB(0,255,255); local r=math.random();if r<0.05 then Frame.BackgroundColor3=g1;Frame.BorderColor3=brG;task.wait(0.05);Frame.BackgroundColor3=g2;task.wait(0.05) elseif r<0.2 then Frame.BackgroundColor3=Color3.Lerp(bC,g1,math.random());Frame.BorderColor3=Color3.Lerp(brB,brG,math.random()*0.5);task.wait(0.1) else Frame.BackgroundColor3=bC;Frame.BorderColor3=brB end local h,s,v=Color3.toHSV(Frame.BorderColor3);Frame.BorderColor3=Color3.fromHSV((h+0.005)%1,s,v) else if Frame and Frame.Parent then Frame.BackgroundColor3=Color3.fromRGB(15,15,20);Frame.BorderColor3=Color3.fromRGB(255,0,0) end end task.wait(0.05) end print("ZXHELL UI: Animasi Frame berhenti.") end)
+task.spawn(function() while ScreenGui and ScreenGui.Parent do if not isMinimized and UiTitleLabel and UiTitleLabel.Parent then local oT=UiTitleLabel.Text:match("ZXHELL %(ARCEUS_FIX%)") and "ZXHELL (ARCEUS_FIX)" or UiTitleLabel.Text ;local gCs={"@","#","$","%","&","*","!","?","/","\\","|_"};local bC=Color3.fromRGB(255,25,25);local oP=UiTitleLabel.Position; local r=math.random();local iGT=false;if r<0.02 then iGT=true;local nT="";for i=1,#oT do if math.random()<0.7 then nT=nT..gCs[math.random(#gCs)] else nT=nT..oT:sub(i,i) end end UiTitleLabel.Text=nT;UiTitleLabel.TextColor3=Color3.fromRGB(math.random(200,255),math.random(0,50),math.random(0,50));UiTitleLabel.Position=oP+UDim2.fromOffset(math.random(-2,2),math.random(-2,2));UiTitleLabel.Rotation=math.random(-1,1)*0.5;task.wait(0.07) elseif r<0.1 then UiTitleLabel.TextColor3=Color3.fromHSV(math.random(),1,1);UiTitleLabel.TextStrokeColor3=Color3.fromHSV(math.random(),0.8,1);UiTitleLabel.TextStrokeTransparency=math.random()*0.3;UiTitleLabel.Rotation=math.random(-1,1)*0.2;task.wait(0.1) else UiTitleLabel.Text=oT;UiTitleLabel.TextStrokeTransparency=0.5;UiTitleLabel.TextStrokeColor3=Color3.fromRGB(50,0,0);UiTitleLabel.Position=oP;UiTitleLabel.Rotation=0 end if not iGT then local h=(tick()*0.1)%1;local rR,gR,bR=Color3.fromHSV(h,1,1).R,Color3.fromHSV(h,1,1).G,Color3.fromHSV(h,1,1).B;rR=math.min(1,rR+0.6);gR=gR*0.4;bR=bR*0.4;UiTitleLabel.TextColor3=Color3.new(rR,gR,bR) end end task.wait(0.05) end print("ZXHELL UI: Animasi Judul berhenti.") end)
+task.spawn(function() local bts={StartButton,ApplyTimersButton,MinimizeButton};while ScreenGui and ScreenGui.Parent do if not isMinimized then for _,btn in ipairs(bts) do if btn and btn.Parent then local oB=btn.BorderColor3;if btn.Name=="StartButton" and scriptRunning then btn.BorderColor3=Color3.fromRGB(255,100,100) else local h,s,v=Color3.toHSV(oB);btn.BorderColor3=Color3.fromHSV(h,s,math.sin(tick()*2)*0.1+0.9) end end end end task.wait(0.1) end print("ZXHELL UI: Animasi Tombol berhenti.") end)
+task.spawn(function() while ScreenGui and ScreenGui.Parent do if isMinimized and minimizedZLabel and minimizedZLabel.Visible then local h=(tick()*0.2)%1;minimizedZLabel.TextColor3=Color3.fromHSV(h,1,1) end task.wait(0.05) end print("ZXHELL UI: Animasi Z Label berhenti.") end)
+
 
 game:BindToClose(function()
-    if scriptRunning then warn("ZXHELL UI (AUTONAV): Game ditutup, menghentikan skrip..."); scriptRunning = false; task.wait(0.5) end
-    if ScreenGui and ScreenGui.Parent then pcall(function() ScreenGui:Destroy() end) end
-    print("ZXHELL UI (AUTONAV): Pembersihan skrip selesai.")
+    scriptRunning = false -- Hentikan semua loop
+    warn("ZXHELL UI (ARCEUS_FIX): Game ditutup, menghentikan skrip...")
+    task.wait(0.7) -- Beri waktu lebih sedikit untuk loop berhenti
+    if ScreenGui and ScreenGui.Parent then 
+        pcall(function() ScreenGui:Destroy() end) 
+        print("ZXHELL UI (ARCEUS_FIX): ScreenGui dihancurkan.")
+    end
+    print("ZXHELL UI (ARCEUS_FIX): Pembersihan skrip selesai.")
 end)
 
-print("ZXHELL UI Script (AUTONAV): Eksekusi LocalScript selesai. UI seharusnya sudah muncul dan interaktif.")
-if StatusLabel and StatusLabel.Parent and StatusLabel.Text == "STATUS: " then StatusLabel.Text = "STATUS: STANDBY_AUTONAV" end
+print("ZXHELL UI Script (ARCEUS_FIX): Eksekusi LocalScript selesai. UI seharusnya sudah muncul dan interaktif.")
+if StatusLabel and StatusLabel.Parent and StatusLabel.Text == "STATUS: " then StatusLabel.Text = "STATUS: STANDBY_ARCEUS" end
