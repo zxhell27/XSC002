@@ -50,10 +50,11 @@ setupCoreGuiParenting()
 -- // Desain UI (Tema Cyber Kultivasi) //
 
 -- --- Frame Utama ---
+Frame.Name = "MainCultivationFrame"
 Frame.Size = UDim2.new(0, 300, 0, 480)
 Frame.Position = UDim2.new(0.02, 0, 0.02, 0)
 Frame.BackgroundTransparency = 0.1
-Frame.Active = true
+Frame.Active = true -- Penting untuk Draggable
 Frame.Draggable = true
 Frame.BorderSizePixel = 1
 Frame.BorderColor3 = Color3.fromRGB(180, 150, 90)
@@ -76,7 +77,7 @@ CyberLinesContainer.Name = "CyberLinesContainer"
 CyberLinesContainer.Parent = Frame
 CyberLinesContainer.Size = UDim2.new(1, 0, 1, 0)
 CyberLinesContainer.BackgroundTransparency = 1
-CyberLinesContainer.ZIndex = 0
+CyberLinesContainer.ZIndex = 0 -- Di belakang elemen Frame utama lainnya
 
 local numberOfLines = 7
 for i = 1, numberOfLines do
@@ -134,6 +135,7 @@ UiTitleLabel.ZIndex = 2
 
 local yOffsetForTitle = 45
 
+StartButton.Name = "StartCultivationButton"
 StartButton.Size = UDim2.new(1, -20, 0, 35)
 StartButton.Position = UDim2.new(0, 10, 0, yOffsetForTitle)
 StartButton.Text = "Mulai Kultivasi"
@@ -145,6 +147,7 @@ local StartButtonCorner = Instance.new("UICorner")
 StartButtonCorner.CornerRadius = UDim.new(0, 5)
 StartButtonCorner.Parent = StartButton
 
+StatusLabel.Name = "StatusDisplayLabel"
 StatusLabel.Size = UDim2.new(1, -20, 0, 40)
 StatusLabel.Position = UDim2.new(0, 10, 0, yOffsetForTitle + 45)
 StatusLabel.Text = "Status: Menunggu Perintah..."
@@ -160,7 +163,7 @@ StatusLabelCorner.Parent = StatusLabel
 
 local timerElements = {}
 local TimerTitleLabel = Instance.new("TextLabel")
-TimerTitleLabel.Name = "TimerTitle"
+TimerTitleLabel.Name = "TimerConfigTitle"
 TimerTitleLabel.Parent = Frame
 TimerTitleLabel.Size = UDim2.new(1, -20, 0, 20)
 TimerTitleLabel.Position = UDim2.new(0, 10, 0, yOffsetForTitle + 95)
@@ -231,29 +234,29 @@ timerElements.ApplyButton = ApplyTimersButton
 
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeButton"
-MinimizeButton.Parent = Frame -- Tetap di Frame utama untuk kontrol
+MinimizeButton.Parent = Frame
 MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
-MinimizeButton.Position = UDim2.new(1, -30, 0, 7) -- Pojok kanan atas Frame utama
+MinimizeButton.Position = UDim2.new(1, -30, 0, 7)
 MinimizeButton.Text = "-"
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(70, 60, 80)
 MinimizeButton.TextColor3 = Color3.fromRGB(200, 190, 210)
 MinimizeButton.Font = Enum.Font.SourceSansBold
-MinimizeButton.ZIndex = 3
+MinimizeButton.ZIndex = 3 -- Di atas elemen Frame lainnya
 local MinimizeButtonCorner = Instance.new("UICorner")
 MinimizeButtonCorner.CornerRadius = UDim.new(0, 4)
 MinimizeButtonCorner.Parent = MinimizeButton
 
--- --- ADDED: Pop-up Frame untuk Tampilan Minimize ---
+-- --- Pop-up Frame untuk Tampilan Minimize ---
 local PopupFrame = Instance.new("Frame")
 PopupFrame.Name = "CultivationPopup"
-PopupFrame.Parent = ScreenGui -- Parent ke ScreenGui agar bisa diposisikan bebas
-PopupFrame.Size = UDim2.new(0, 120, 0, 70) -- Ukuran kecil untuk pop-up
-PopupFrame.Position = UDim2.new(0.5, -60, 0.5, -35) -- Tengah layar sebagai default
+PopupFrame.Parent = ScreenGui
+PopupFrame.Size = UDim2.new(0, 130, 0, 70) -- Sedikit lebih lebar untuk tombol Maximize
+PopupFrame.Position = UDim2.new(0.02, 0, 0.02, 0) -- Awalnya di posisi Frame utama
 PopupFrame.BackgroundTransparency = 0.15
-PopupFrame.BackgroundColor3 = Color3.fromRGB(15, 10, 25) -- Warna gelap senada
-PopupFrame.Active = true
+PopupFrame.BackgroundColor3 = Color3.fromRGB(15, 10, 25)
+PopupFrame.Active = true -- Penting untuk Draggable dan klik tombol di dalamnya
 PopupFrame.Draggable = true
-PopupFrame.Visible = false -- Awalnya tidak terlihat
+PopupFrame.Visible = false
 PopupFrame.ZIndex = 10 -- Di atas segalanya saat terlihat
 local PopupFrameCorner = Instance.new("UICorner")
 PopupFrameCorner.CornerRadius = UDim.new(0, 6)
@@ -270,11 +273,11 @@ PopupGradient.Parent = PopupFrame
 local GlitchZLabel = Instance.new("TextLabel")
 GlitchZLabel.Name = "GlitchZLabel"
 GlitchZLabel.Parent = PopupFrame
-GlitchZLabel.Size = UDim2.new(1, -10, 0, 30)
+GlitchZLabel.Size = UDim2.new(0.6, -5, 1, -30) -- Ruang untuk tombol Maximize di kanan
 GlitchZLabel.Position = UDim2.new(0, 5, 0, 5)
 GlitchZLabel.Font = Enum.Font.Code
 GlitchZLabel.Text = "Z"
-GlitchZLabel.TextColor3 = Color3.fromRGB(100, 255, 100) -- Hijau neon
+GlitchZLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
 GlitchZLabel.TextScaled = true
 GlitchZLabel.BackgroundTransparency = 1
 GlitchZLabel.ZIndex = 11
@@ -282,29 +285,32 @@ GlitchZLabel.ZIndex = 11
 local PopupTimerLabel = Instance.new("TextLabel")
 PopupTimerLabel.Name = "PopupTimerLabel"
 PopupTimerLabel.Parent = PopupFrame
-PopupTimerLabel.Size = UDim2.new(1, -10, 0, 20)
-PopupTimerLabel.Position = UDim2.new(0, 5, 0, 40)
+PopupTimerLabel.Size = UDim2.new(0.6, -5, 0, 20) -- Ruang untuk tombol Maximize
+PopupTimerLabel.Position = UDim2.new(0, 5, 1, -25) -- Di bawah GlitchZLabel
 PopupTimerLabel.Font = Enum.Font.SourceSans
 PopupTimerLabel.Text = "Idle: 00:00"
-PopupTimerLabel.TextColor3 = Color3.fromRGB(180, 200, 255) -- Biru muda
+PopupTimerLabel.TextColor3 = Color3.fromRGB(180, 200, 255)
 PopupTimerLabel.TextScaled = true
 PopupTimerLabel.BackgroundTransparency = 1
 PopupTimerLabel.ZIndex = 11
--- --- END ADDED POP-UP ELEMENTS ---
 
-local isMinimized = false
--- Kumpulkan semua elemen anak dari Frame utama yang perlu di-toggle visibilitasnya
--- Tidak termasuk MinimizeButton dan elemen background seperti CyberLinesContainer
-local mainFrameElementsToToggle = {}
-for _, child in ipairs(Frame:GetChildren()) do
-    if child ~= MinimizeButton and 
-       child ~= FrameCorner and 
-       child ~= BackgroundGradient and 
-       child ~= CyberLinesContainer then
-        table.insert(mainFrameElementsToToggle, child)
-    end
-end
+-- --- ADDED: Tombol Maximize di dalam PopupFrame ---
+local MaximizePopupButton = Instance.new("TextButton")
+MaximizePopupButton.Name = "MaximizePopupButton"
+MaximizePopupButton.Parent = PopupFrame
+MaximizePopupButton.Size = UDim2.new(0.35, 0, 1, -10) -- Di sisi kanan PopupFrame
+MaximizePopupButton.Position = UDim2.new(0.65, 0, 0, 5) -- Sebelah kanan GlitchZLabel dan PopupTimerLabel
+MaximizePopupButton.Text = "[ ]" -- Simbol untuk maximize
+MaximizePopupButton.Font = Enum.Font.SourceSansBold
+MaximizePopupButton.TextColor3 = Color3.fromRGB(200, 220, 255)
+MaximizePopupButton.BackgroundColor3 = Color3.fromRGB(50, 70, 100)
+MaximizePopupButton.ZIndex = 12 -- Di atas elemen PopupFrame lainnya
+local MaximizeButtonCorner = Instance.new("UICorner")
+MaximizeButtonCorner.CornerRadius = UDim.new(0, 4)
+MaximizeButtonCorner.Parent = MaximizePopupButton
+-- --- END ADDED POP-UP MAXIMIZE BUTTON ---
 
+local isMinimized = false -- Variabel state untuk minimize/maximize
 
 -- // Fungsi tunggu (Struktur Asli Dipertahankan) //
 local function waitSeconds(sec)
@@ -438,7 +444,7 @@ end
 StartButton.MouseButton1Click:Connect(function()
     scriptRunning = not scriptRunning
     if scriptRunning then
-        scriptStartTime = tick() -- Catat waktu mulai skrip untuk timer pop-up
+        scriptStartTime = tick()
         StartButton.Text = "Mengalirkan Energi..."
         StartButton.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
         if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "Status: Memulai siklus kultivasi..." end
@@ -464,7 +470,6 @@ StartButton.MouseButton1Click:Connect(function()
         end
     else
         if StatusLabel and StatusLabel.Parent then StatusLabel.Text = "Status: Menghentikan aliran energi..." end
-        -- scriptStartTime tidak direset, timer pop-up akan berhenti update saat scriptRunning false
     end
 end)
 
@@ -501,23 +506,42 @@ ApplyTimersButton.MouseButton1Click:Connect(function()
     if timerElements.PostComprehendQiLabel then pcall(function() timerElements.PostComprehendQiLabel.TextColor3 = defaultLabelColor end) end
 end)
 
--- --- MODIFIED: Logika untuk Tombol Minimize ---
+-- --- MODIFIED: Logika untuk Tombol Minimize dan Maximize ---
 MinimizeButton.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    if isMinimized then
-        MinimizeButton.Text = "O" -- Atau simbol untuk maximize
-        Frame.Visible = false -- Sembunyikan frame utama
-        PopupFrame.Visible = true -- Tampilkan pop-up
-        -- Jika ingin pop-up muncul di posisi frame utama terakhir:
-        -- PopupFrame.Position = Frame.Position 
-    else
+    print("MinimizeButton clicked. Current isMinimized before action:", isMinimized) -- DEBUG
+    if not isMinimized then -- Jika belum minimize, maka minimize
+        isMinimized = true
+        print("MinimizeButton: Minimizing UI. isMinimized set to:", isMinimized) -- DEBUG
+        MinimizeButton.Text = "[ ]" -- Ubah teks tombol di Frame utama menjadi simbol maximize
+        Frame.Visible = false 
+        PopupFrame.Position = Frame.Position -- Posisikan pop-up di tempat Frame utama terakhir
+        PopupFrame.Visible = true 
+    else -- Jika sudah minimize (tombol ini seharusnya tidak bisa diklik jika Frame utama tidak visible, tapi sebagai fallback)
+        -- Logika ini seharusnya ditangani oleh MaximizePopupButton
+        print("MinimizeButton: Clicked while already minimized (should be handled by MaximizePopupButton). Forcing maximize.") -- DEBUG
+        isMinimized = false
         MinimizeButton.Text = "-"
-        Frame.Visible = true -- Tampilkan kembali frame utama
-        PopupFrame.Visible = false -- Sembunyikan pop-up
+        Frame.Visible = true
+        PopupFrame.Visible = false
     end
 end)
 
--- --- Animasi Glitch Canggih untuk UiTitleLabel (Struktur Asli Dipertahankan) ---
+MaximizePopupButton.MouseButton1Click:Connect(function()
+    print("MaximizePopupButton clicked. Current isMinimized before action:", isMinimized) -- DEBUG
+    if isMinimized then -- Hanya lakukan aksi jika UI sedang dalam keadaan minimize
+        isMinimized = false       
+        print("MaximizePopupButton: Maximizing UI. isMinimized set to:", isMinimized) -- DEBUG
+        MinimizeButton.Text = "-" -- Ubah teks tombol minimize di Frame utama
+        Frame.Visible = true      
+        PopupFrame.Visible = false  
+    else
+        print("MaximizePopupButton clicked, but UI is not in minimized state (isMinimized is false). No action taken.") --DEBUG
+    end
+end)
+-- --- END MODIFIED MINIMIZE/MAXIMIZE LOGIC ---
+
+
+-- Animasi Glitch Canggih untuk UiTitleLabel (Hanya jika Frame utama terlihat)
 coroutine.wrap(function()
     if not UiTitleLabel or not UiTitleLabel.Parent then return end
     local originalText = UiTitleLabel.Text; local textLength = string.len(originalText)
@@ -525,7 +549,7 @@ coroutine.wrap(function()
     local hue = 0; local S, V = 0.95, 0.95; local baseSpeed = 0.007
     local originalPosition = UiTitleLabel.Position; local lastGlitchTime = tick()
     while ScreenGui and ScreenGui.Parent and UiTitleLabel and UiTitleLabel.Parent do
-        if Frame.Visible then -- Hanya animasikan jika frame utama terlihat
+        if Frame.Visible then 
             hue = (hue + baseSpeed) % 1; local r, g, b
             if hue < 0.33 then local h_adj = hue * 2.5; r,g,b = Color3.fromHSV(h_adj,S,V).R, Color3.fromHSV(h_adj,S,V).G*0.6, Color3.fromHSV(h_adj,S,V).B*0.3
             elseif hue < 0.66 then local h_adj = ((hue-0.33)*2.5)+0.08; r,g,b = Color3.fromHSV(h_adj,S,V).R, Color3.fromHSV(h_adj,S,V).G, Color3.fromHSV(h_adj,S,V).B*0.4
@@ -556,7 +580,7 @@ coroutine.wrap(function()
     end
 end)()
 
--- --- ADDED: Animasi Glitch untuk Z di Pop-up dan Update Timer Pop-up ---
+-- Animasi Glitch untuk Z di Pop-up dan Update Timer Pop-up (Hanya jika PopupFrame terlihat)
 coroutine.wrap(function()
     if not GlitchZLabel or not GlitchZLabel.Parent then return end
     local glitchZChars = {"Z", "X", "7", "?", "/", "\\", "#", "@"}
@@ -565,47 +589,30 @@ coroutine.wrap(function()
 
     while ScreenGui and ScreenGui.Parent and PopupFrame and PopupFrame.Parent do
         if PopupFrame.Visible then
-            -- Animasi Glitch Z
-            if math.random() < 0.15 then -- Peluang glitch setiap frame
-                local tempZColor = GlitchZLabel.TextColor3
-                local tempZText = GlitchZLabel.Text
-                local tempZPos = GlitchZLabel.Position
-
+            if math.random() < 0.15 then 
+                local tempZColor = GlitchZLabel.TextColor3; local tempZText = GlitchZLabel.Text; local tempZPos = GlitchZLabel.Position
                 GlitchZLabel.Text = glitchZChars[math.random(#glitchZChars)]
                 GlitchZLabel.TextColor3 = Color3.fromRGB(math.random(50,255), math.random(50,255), math.random(50,255))
-                local offsetX = math.random(-2, 2)
-                local offsetY = math.random(-2, 2)
+                local offsetX = math.random(-2, 2); local offsetY = math.random(-2, 2)
                 GlitchZLabel.Position = UDim2.new(originalZPosition.X.Scale, originalZPosition.X.Offset + offsetX, originalZPosition.Y.Scale, originalZPosition.Y.Offset + offsetY)
-                
-                task.wait(math.random(1,3) * 0.05) -- Durasi glitch singkat
-
-                GlitchZLabel.Text = "Z"
-                GlitchZLabel.TextColor3 = tempZColor -- Bisa juga kembali ke originalZColor
-                GlitchZLabel.Position = tempZPos -- Kembali ke posisi semula atau originalZPosition
+                task.wait(math.random(1,3) * 0.05) 
+                GlitchZLabel.Text = "Z"; GlitchZLabel.TextColor3 = tempZColor; GlitchZLabel.Position = tempZPos
             else
-                 GlitchZLabel.TextColor3 = originalZColor -- Pastikan kembali ke warna asli jika tidak glitch
-                 GlitchZLabel.Position = originalZPosition
+                 GlitchZLabel.TextColor3 = originalZColor; GlitchZLabel.Position = originalZPosition
             end
-
-            -- Update Timer Pop-up
             if scriptRunning and scriptStartTime > 0 then
-                local elapsedTime = tick() - scriptStartTime
-                local minutes = math.floor(elapsedTime / 60)
-                local seconds = math.floor(elapsedTime % 60)
+                local elapsedTime = tick() - scriptStartTime; local minutes = math.floor(elapsedTime / 60); local seconds = math.floor(elapsedTime % 60)
                 PopupTimerLabel.Text = string.format("Aktif: %02d:%02d", minutes, seconds)
-            elseif not scriptRunning and scriptStartTime > 0 then -- Skrip pernah jalan tapi sekarang berhenti
-                 local elapsedTime = tick() - scriptStartTime -- Tampilkan waktu terakhir
-                 local minutes = math.floor(elapsedTime / 60)
-                 local seconds = math.floor(elapsedTime % 60)
+            elseif not scriptRunning and scriptStartTime > 0 then 
+                 local elapsedTime = tick() - scriptStartTime; local minutes = math.floor(elapsedTime / 60); local seconds = math.floor(elapsedTime % 60)
                  PopupTimerLabel.Text = string.format("Stop: %02d:%02d", minutes, seconds)
             else
                 PopupTimerLabel.Text = "Idle: 00:00"
             end
         end
-        task.wait(0.1) -- Update rate untuk pop-up (glitch & timer)
+        task.wait(0.1) 
     end
 end)()
-
 
 -- BindToClose (Struktur Asli Dipertahankan) //
 game:BindToClose(function()
@@ -618,7 +625,7 @@ game:BindToClose(function()
 end)
 
 -- Inisialisasi (Struktur Asli Dipertahankan) //
-print("Skrip Otomatisasi Kultivasi (Versi UI Cyber Kultivasi Popup Minimize) Telah Dimuat.")
+print("Skrip Otomatisasi Kultivasi (Versi UI Cyber Kultivasi dengan Tombol Maximize Dedikasi) Telah Dimuat.")
 task.wait(1)
 if ScreenGui and not ScreenGui.Parent then print("Mencoba memparentkan UI ke CoreGui lagi..."); setupCoreGuiParenting() end
 if StatusLabel and StatusLabel.Parent and StatusLabel.Text == "" then StatusLabel.Text = "Status: Menunggu Perintah..." end
