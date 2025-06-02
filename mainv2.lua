@@ -1,5 +1,5 @@
 -- MainScript.lua
--- Gabungan UI dan Logika untuk eksekusi via eksekutor Roblox
+-- Gabungan UI dan Logika dengan UI pop-up 'Z' merah RGB
 
 -- // UI FRAME (Struktur Asli Dipertahankan) //
 local ScreenGui = Instance.new("ScreenGui")
@@ -39,14 +39,16 @@ local aptitudeMineThread = nil
 local updateQiThread = nil
 
 local isMinimized = false
-local originalFrameSize = UDim2.new(0, 300, 0, 480) -- Ukuran awal UI
-local minimizedFrameHeight = 60 -- Tinggi pop-up saat diminimize
+local originalFrameSize = UDim2.new(0, 260, 0, 420) -- Ukuran awal UI lebih kecil
+local minimizedFrameSize = UDim2.new(0, 50, 0, 50) -- Ukuran pop-up 'Z'
+local minimizedZLabel = Instance.new("TextLabel") -- Label khusus untuk pop-up 'Z'
 
+-- Kumpulan elemen yang visibilitasnya akan di-toggle
 local elementsToToggleVisibility = {} -- Akan diisi setelah semua elemen UI dibuat
 
 -- --- Tabel Konfigurasi Timer ---
 local timers = {
-    wait_1m30s_after_first_items = 90, -- Example initial value
+    wait_1m30s_after_first_items = 90,
     alur_wait_40s_hide_qi = 40,
     comprehend_duration = 20,
     post_comprehend_qi_duration = 60,
@@ -81,6 +83,7 @@ local function setupCoreGuiParenting()
     MinimizeButton.Parent = Frame
     TimerTitleLabel.Parent = Frame
     ApplyTimersButton.Parent = Frame
+    minimizedZLabel.Parent = Frame -- Parentkan label Z ke Frame juga
 end
 setupCoreGuiParenting() -- Panggil di awal untuk parenting UI
 
@@ -101,13 +104,13 @@ UICorner.CornerRadius = UDim.new(0, 10) -- Sudut lebih membulat
 UICorner.Parent = Frame
 
 -- --- Nama UI Label ("ZXHELL X ZEDLIST") ---
-UiTitleLabel.Size = UDim2.new(1, -20, 0, 40) -- Lebih besar
+UiTitleLabel.Size = UDim2.new(1, -20, 0, 35) -- Lebih kecil sedikit
 UiTitleLabel.Position = UDim2.new(0, 10, 0, 10)
-UiTitleLabel.Font = Enum.Font.SourceSansSemibold -- Font lebih tegas
+UiTitleLabel.Font = Enum.Font.SourceSansSemibold
 UiTitleLabel.Text = "ZXHELL X ZEDLIST"
 UiTitleLabel.TextColor3 = Color3.fromRGB(255, 25, 25)
 UiTitleLabel.TextScaled = false
-UiTitleLabel.TextSize = 28
+UiTitleLabel.TextSize = 24 -- Ukuran font sedang
 UiTitleLabel.TextXAlignment = Enum.TextXAlignment.Center
 UiTitleLabel.BackgroundTransparency = 1
 UiTitleLabel.ZIndex = 2
@@ -115,14 +118,14 @@ UiTitleLabel.TextStrokeTransparency = 0.5
 UiTitleLabel.TextStrokeColor3 = Color3.fromRGB(50,0,0)
 
 -- Posisi elemen lain disesuaikan dengan layout baru
-local yOffsetForTitle = 55 -- Jarak dari atas frame ke elemen berikutnya
+local yOffsetForTitle = 50 -- Jarak dari atas frame ke elemen berikutnya (disesuaikan)
 
 -- --- Tombol Start/Stop ---
-StartButton.Size = UDim2.new(1, -40, 0, 40)
+StartButton.Size = UDim2.new(1, -40, 0, 35) -- Lebih kecil
 StartButton.Position = UDim2.new(0, 20, 0, yOffsetForTitle)
 StartButton.Text = "START SEQUENCE"
 StartButton.Font = Enum.Font.SourceSansBold
-StartButton.TextSize = 18
+StartButton.TextSize = 16 -- Ukuran font sedang
 StartButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 StartButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20) -- Merah gelap
 StartButton.BorderSizePixel = 1
@@ -134,11 +137,11 @@ StartButtonCorner.CornerRadius = UDim.new(0, 5)
 StartButtonCorner.Parent = StartButton
 
 -- --- Status Label ---
-StatusLabel.Size = UDim2.new(1, -40, 0, 50)
-StatusLabel.Position = UDim2.new(0, 20, 0, yOffsetForTitle + 50)
+StatusLabel.Size = UDim2.new(1, -40, 0, 45) -- Lebih kecil
+StatusLabel.Position = UDim2.new(0, 20, 0, yOffsetForTitle + 45)
 StatusLabel.Text = "STATUS: STANDBY"
 StatusLabel.Font = Enum.Font.SourceSansLight
-StatusLabel.TextSize = 16
+StatusLabel.TextSize = 14 -- Ukuran font sedang
 StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 220) -- Putih kebiruan
 StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 30) -- Gelap
 StatusLabel.TextWrapped = true
@@ -150,14 +153,14 @@ local StatusLabelCorner = Instance.new("UICorner")
 StatusLabelCorner.CornerRadius = UDim.new(0, 5)
 StatusLabelCorner.Parent = StatusLabel
 
-local yOffsetForTimers = yOffsetForTitle + 110
+local yOffsetForTimers = yOffsetForTitle + 100 -- Disesuaikan
 
 -- --- Konfigurasi Timer UI ---
-TimerTitleLabel.Size = UDim2.new(1, -40, 0, 25)
+TimerTitleLabel.Size = UDim2.new(1, -40, 0, 20) -- Lebih kecil
 TimerTitleLabel.Position = UDim2.new(0, 20, 0, yOffsetForTimers)
 TimerTitleLabel.Text = "// TIMER CONFIGURATION_SEQ"
 TimerTitleLabel.Font = Enum.Font.Code
-TimerTitleLabel.TextSize = 16
+TimerTitleLabel.TextSize = 14 -- Ukuran font sedang
 TimerTitleLabel.TextColor3 = Color3.fromRGB(255, 80, 80) -- Merah terang
 TimerTitleLabel.BackgroundTransparency = 1
 TimerTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -167,11 +170,11 @@ local function createTimerInput(name, yPos, labelText, initialValue)
     local label = Instance.new("TextLabel")
     label.Name = name .. "Label"
     label.Parent = Frame
-    label.Size = UDim2.new(0.55, -25, 0, 22)
+    label.Size = UDim2.new(0.55, -25, 0, 20) -- Lebih kecil
     label.Position = UDim2.new(0, 20, 0, yPos + yOffsetForTimers)
     label.Text = labelText .. ":"
     label.Font = Enum.Font.SourceSans
-    label.TextSize = 14
+    label.TextSize = 12 -- Ukuran font sedang
     label.TextColor3 = Color3.fromRGB(180, 180, 200)
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
@@ -181,12 +184,12 @@ local function createTimerInput(name, yPos, labelText, initialValue)
     local input = Instance.new("TextBox")
     input.Name = name .. "Input"
     input.Parent = Frame
-    input.Size = UDim2.new(0.45, -25, 0, 22)
+    input.Size = UDim2.new(0.45, -25, 0, 20) -- Lebih kecil
     input.Position = UDim2.new(0.55, 5, 0, yPos + yOffsetForTimers)
     input.Text = tostring(initialValue)
     input.PlaceholderText = "sec"
     input.Font = Enum.Font.SourceSansSemibold
-    input.TextSize = 14
+    input.TextSize = 12 -- Ukuran font sedang
     input.TextColor3 = Color3.fromRGB(255, 255, 255)
     input.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     input.ClearTextOnFocus = false
@@ -202,22 +205,22 @@ local function createTimerInput(name, yPos, labelText, initialValue)
     return input
 end
 
-local currentYConfig = 35 -- Jarak dari TimerTitleLabel
+local currentYConfig = 30 -- Jarak dari TimerTitleLabel (disesuaikan)
 -- Inisialisasi nilai input timer dari tabel timers
 timerInputElements.wait1m30sInput = createTimerInput("Wait1m30s", currentYConfig, "T1_POST_ITEM_SET1", timers.wait_1m30s_after_first_items)
-currentYConfig = currentYConfig + 30
+currentYConfig = currentYConfig + 25 -- Jarak antar input (disesuaikan)
 timerInputElements.wait40sInput = createTimerInput("Wait40s", currentYConfig, "T2_ITEM2_QI_PAUSE", timers.alur_wait_40s_hide_qi)
-currentYConfig = currentYConfig + 30
+currentYConfig = currentYConfig + 25
 timerInputElements.comprehendInput = createTimerInput("Comprehend", currentYConfig, "T3_COMPREHEND_DUR", timers.comprehend_duration)
-currentYConfig = currentYConfig + 30
+currentYConfig = currentYConfig + 25
 timerInputElements.postComprehendQiInput = createTimerInput("PostComprehendQi", currentYConfig, "T4_POST_COMP_QI_DUR", timers.post_comprehend_qi_duration)
-currentYConfig = currentYConfig + 40
+currentYConfig = currentYConfig + 35 -- Disesuaikan
 
-ApplyTimersButton.Size = UDim2.new(1, -40, 0, 35)
+ApplyTimersButton.Size = UDim2.new(1, -40, 0, 30) -- Lebih kecil
 ApplyTimersButton.Position = UDim2.new(0, 20, 0, currentYConfig + yOffsetForTimers)
 ApplyTimersButton.Text = "APPLY_TIMERS"
 ApplyTimersButton.Font = Enum.Font.SourceSansBold
-ApplyTimersButton.TextSize = 16
+ApplyTimersButton.TextSize = 14 -- Ukuran font sedang
 ApplyTimersButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 ApplyTimersButton.BackgroundColor3 = Color3.fromRGB(30, 80, 30) -- Hijau gelap
 ApplyTimersButton.BorderColor3 = Color3.fromRGB(80, 255, 80)
@@ -228,7 +231,7 @@ local ApplyButtonCorner = Instance.new("UICorner")
 ApplyButtonCorner.CornerRadius = UDim.new(0, 5)
 ApplyButtonCorner.Parent = ApplyTimersButton
 
--- --- Tombol Minimize ---
+-- --- Tombol Minimize (tetap di posisi yang sama relatif terhadap frame, tapi frame mengecil) ---
 MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
 MinimizeButton.Position = UDim2.new(1, -35, 0, 10)
 MinimizeButton.Text = "_" -- Simbol minimize
@@ -244,9 +247,23 @@ local MinimizeButtonCorner = Instance.new("UICorner")
 MinimizeButtonCorner.CornerRadius = UDim.new(0, 3)
 MinimizeButtonCorner.Parent = MinimizeButton
 
+-- --- Pop-up 'Z' (Baru) ---
+minimizedZLabel.Size = UDim2.new(1, 0, 1, 0) -- Akan mengisi seluruh Frame saat minimized
+minimizedZLabel.Position = UDim2.new(0,0,0,0)
+minimizedZLabel.Text = "Z"
+minimizedZLabel.Font = Enum.Font.SourceSansBold
+minimizedZLabel.TextScaled = false
+minimizedZLabel.TextSize = 40 -- Ukuran besar agar memenuhi pop-up kecil
+minimizedZLabel.TextColor3 = Color3.fromRGB(255, 0, 0) -- Merah
+minimizedZLabel.TextXAlignment = Enum.TextXAlignment.Center
+minimizedZLabel.TextYAlignment = Enum.TextYAlignment.Center
+minimizedZLabel.BackgroundTransparency = 1
+minimizedZLabel.ZIndex = 4 -- Pastikan di atas semua
+minimizedZLabel.Visible = false -- Awalnya sembunyi
+
 -- Kumpulan elemen yang visibilitasnya akan di-toggle
 elementsToToggleVisibility = {
-    StartButton, StatusLabel, TimerTitleLabel, ApplyTimersButton,
+    UiTitleLabel, StartButton, StatusLabel, TimerTitleLabel, ApplyTimersButton,
     timerInputElements.wait1m30sLabel, timerInputElements.wait1m30sInput,
     timerInputElements.wait40sLabel, timerInputElements.wait40sInput,
     timerInputElements.comprehendLabel, timerInputElements.comprehendInput,
@@ -260,9 +277,9 @@ end
 
 -- // Fungsi Animasi UI //
 local TweenService = game:GetService("TweenService")
-local function animateFrameSize(targetSize, callback)
+local function animateFrame(targetSize, targetPosition, callback)
     local info = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local properties = {Size = targetSize}
+    local properties = {Size = targetSize, Position = targetPosition}
     local tween = TweenService:Create(Frame, info, properties)
     tween:Play()
     if callback then
@@ -271,34 +288,39 @@ local function animateFrameSize(targetSize, callback)
     end
 end
 
-local function toggleElementVisibility(visible)
-    for _, element in ipairs(elementsToToggleVisibility) do
-        if element and element.Parent then
-            element.Visible = visible
-        end
-    end
-end
-
 -- // Fungsi Minimize/Maximize UI //
 local function toggleMinimize()
     isMinimized = not isMinimized
     if isMinimized then
         MinimizeButton.Text = "□" -- Simbol maximize
-        -- Sembunyikan elemen sebelum animasi ukuran
-        toggleElementVisibility(false)
-        animateFrameSize(UDim2.fromOffset(Frame.Size.X.Offset, minimizedFrameHeight), function()
-            UiTitleLabel.Position = UDim2.new(0.5, -UiTitleLabel.AbsoluteSize.X/2, 0.5, -UiTitleLabel.AbsoluteSize.Y/2)
-            UiTitleLabel.TextSize = 20
-            MinimizeButton.Position = UDim2.new(1, -35, 0.5, -MinimizeButton.AbsoluteSize.Y/2)
+        -- Sembunyikan semua elemen kecuali Frame dan 'Z' label
+        for _, element in ipairs(elementsToToggleVisibility) do
+            if element and element.Parent then element.Visible = false end
+        end
+        MinimizeButton.Visible = false -- Sembunyikan tombol minimize saat mode Z
+        minimizedZLabel.Visible = true -- Tampilkan 'Z'
+
+        -- Pindahkan frame ke pojok kanan bawah atau posisi pop-up yang diinginkan
+        local targetX = 1 - (minimizedFrameSize.X.Offset / ScreenGui.AbsoluteSize.X) - 0.02 -- Sedikit dari kanan
+        local targetY = 1 - (minimizedFrameSize.Y.Offset / ScreenGui.AbsoluteSize.Y) - 0.02 -- Sedikit dari bawah
+        local targetPosition = UDim2.new(targetX, 0, targetY, 0)
+
+        animateFrame(minimizedFrameSize, targetPosition, function()
+            -- Frame sudah di posisi dan ukuran minimized
+            -- UI Title Label dan Minimize Button tidak perlu diatur posisinya lagi karena sudah disembunyikan
         end)
     else
         MinimizeButton.Text = "_"
-        animateFrameSize(originalFrameSize, function()
-            -- Tampilkan elemen setelah animasi ukuran
-            toggleElementVisibility(true)
-            UiTitleLabel.Position = UDim2.new(0, 10, 0, 10)
-            UiTitleLabel.TextSize = 28
-            MinimizeButton.Position = UDim2.new(1, -35, 0, 10)
+        minimizedZLabel.Visible = false -- Sembunyikan 'Z'
+        MinimizeButton.Visible = true -- Tampilkan kembali tombol minimize
+
+        -- Posisikan kembali ke tengah layar
+        local targetPosition = UDim2.new(0.5, -originalFrameSize.X.Offset/2, 0.5, -originalFrameSize.Y.Offset/2)
+        animateFrame(originalFrameSize, targetPosition, function()
+            -- Tampilkan semua elemen setelah animasi ukuran
+            for _, element in ipairs(elementsToToggleVisibility) do
+                if element and element.Parent then element.Visible = true end
+            end
         end)
     end
 end
@@ -446,7 +468,6 @@ end
 -- Tombol Start (Dari skrip Anda)
 StartButton.MouseButton1Click:Connect(function()
     scriptRunning = not scriptRunning
-    -- No need to call setScriptRunningState anymore as it's a single script
     if scriptRunning then
         StartButton.Text = "SYSTEM_ACTIVE"
         StartButton.BackgroundColor3 = Color3.fromRGB(200, 30, 30) -- Merah menyala
@@ -525,7 +546,7 @@ spawn(function() -- Animasi Latar Belakang Frame (Glitchy Background)
             Frame.BackgroundColor3 = baseColor
             Frame.BorderColor3 = borderBase
         end
-        -- Animasi border utama
+        -- Animasi border utama (HSV shift)
         local h,s,v = Color3.toHSV(Frame.BorderColor3)
         Frame.BorderColor3 = Color3.fromHSV((h + 0.005)%1, s, v)
         task.wait(0.1)
@@ -604,6 +625,16 @@ spawn(function() -- Animasi Tombol (Subtle Pulse)
             end
         end
         task.wait(0.1)
+    end
+end)
+
+spawn(function() -- Animasi Pop-up 'Z' (RGB Pulse)
+    while ScreenGui and ScreenGui.Parent do
+        if isMinimized and minimizedZLabel.Visible then
+            local hue = (tick() * 0.2) % 1 -- Animasi warna RGB
+            minimizedZLabel.TextColor3 = Color3.fromHSV(hue, 1, 1)
+        end
+        task.wait(0.05)
     end
 end)
 -- --- END ANIMASI UI BARU ---
