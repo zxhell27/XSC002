@@ -37,26 +37,49 @@ local GuiService = game:GetService("GuiService")
 
 local lastSkillTime = 0
 local noEnemyTimer = tick()
-local spawnPos = nil
 local lastTeleportTime = 0
-local TELEPORT_COOLDOWN = 6
-local portalInProgress = false  -- flag: sedang proses masuk portal
+local portalInProgress = false
 
--- Ambil semua portal HANYA dari workspace.RoundDoor yang punya RF
--- Abaikan workspace.World.Portal (portal dunia)
+-- Fungsi jalan ke posisi, tunggu sampai dekat atau timeout
+local function WalkTo(hrp, humanoid, targetPos, timeout, stopDist)
+    stopDist = stopDist or 5
+    timeout = timeout or 10
+    humanoid:MoveTo(targetPos)
+    local startTime = tick()
+    while tick() - startTime < timeout do
+        if not hrp or not hrp.Parent then break end
+        local dist = (hrp.Position - targetPos).Magnitude
+        if dist <= stopDist then break end
+        -- Refresh MoveTo setiap 1 detik supaya tidak berhenti sendiri
+        if (tick() - startTime) % 1 < 0.05 then
+            humanoid:MoveTo(targetPos)
+        end
+        task.wait(0.1)
+    end
+end
+
+-- Fungsi tekan tombol F berkali-kali sambil di depan pintu
+local function PressF(times, interval)
+    times = times or 5
+    interval = interval or 0.3
+    for i = 1, times do
+        VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+        task.wait(0.05)
+        VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        task.wait(interval)
+    end
+end
+
+-- Cari semua portal RF di RoundDoor
 local function GetValidPortals()
     local portals = {}
     local roundDoor = workspace:FindFirstChild("RoundDoor")
     if not roundDoor then return portals end
-
     for _, child in ipairs(roundDoor:GetChildren()) do
-        -- child bisa: Door, Portal, PortalD
-        -- Skip "Door" karena tidak punya RF (pakai tombol F)
         local root = child:FindFirstChild("Root")
         if root then
             local rf = root:FindFirstChildWhichIsA("RemoteFunction")
             if rf then
-                -- Ini portal valid (Portal atau PortalD)
                 table.insert(portals, {root = root, rf = rf, name = child.Name})
             end
         end
@@ -64,25 +87,25 @@ local function GetValidPortals()
     return portals
 end
 
--- Ambil pintu biasa (pakai tombol F) — child "Door" di RoundDoor
-local function GetRoundDoor()
+-- Cari part pintu F (doorL/doorR di RoundDoor.Door)
+local function GetDoorFPart()
     local roundDoor = workspace:FindFirstChild("RoundDoor")
     if not roundDoor then return nil end
     local door = roundDoor:FindFirstChild("Door")
     if not door then return nil end
-    -- Ambil part apapun dari doorL atau doorR sebagai target teleport
-    local doorL = door:FindFirstChild("doorL")
-    local part = doorL and doorL:FindFirstChildWhichIsA("BasePart")
-    return part
+    -- Coba ambil part dari doorL atau doorR
+    for _, sub in ipairs(door:GetChildren()) do
+        local part = sub:FindFirstChildWhichIsA("BasePart")
+        if part then return part end
+    end
+    -- Fallback: ambil langsung BasePart di Door
+    return door:FindFirstChildWhichIsA("BasePart")
 end
 
 local function ResetState()
     noEnemyTimer = tick()
     lastTeleportTime = tick()
     portalInProgress = false
-    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        spawnPos = Player.Character.HumanoidRootPart.Position
-    end
 end
 
 local function SetToggle(state)
@@ -90,11 +113,11 @@ local function SetToggle(state)
     if _G.AutoDungeon then
         ToggleButton.Text = "ULTIMATE AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-        portalInProgress = false
         ResetState()
     else
         ToggleButton.Text = "ULTIMATE AFK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+        portalInProgress = false
     end
 end
 
@@ -126,6 +149,7 @@ local function HandleResultGui()
             if btn and btn.Visible and btn.AbsoluteSize.X > 0 then
                 GuiService.SelectedObject = btn
                 VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                task.wait(0.05)
                 VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
                 if getconnections then
                     for _, v in pairs(getconnections(btn.MouseButton1Click)) do v:Fire() end
@@ -137,21 +161,94 @@ local function HandleResultGui()
     end)
 end
 
+-- Proses masuk portal RF (Portal/PortalD)
+local function DoPortal(hrp, humanoid, portalData)
+    portalInProgress = true
+    ToggleButton.Text = "MENUJU PORTAL..."
+
+    -- Jalan ke dekat portal dulu
+    local targetPos = portalData.root.Position
+    WalkTo(hrp, humanoid, targetPos, 12, 6)
+    task.wait(0.3)
+
+    -- Invoke RF
+    pcall(function()
+        portalData.rf:InvokeServer()
+    end)
+
+    -- Tunggu stage baru load
+    ToggleButton.Text = "LOADING STAGE..."
+    task.wait(4)
+
+    ResetState()
+    ToggleButton.Text = "ULTIMATE AFK: ON"
+end
+
+-- Proses masuk pintu F
+local function DoDoorF(hrp, humanoid)
+    portalInProgress = true
+    ToggleButton.Text = "MENUJU PINTU..."
+
+    local doorPart = GetDoorFPart()
+    if not doorPart then
+        portalInProgress = false
+        return
+    end
+
+    local doorPos = doorPart.Position
+
+    -- Jalan ke depan pintu (offset 4 studs)
+    local approachPos = doorPos + Vector3.new(0, 0, 4)
+    WalkTo(hrp, humanoid, approachPos, 15, 3)
+    task.wait(0.3)
+
+    -- Posisi tepat di depan pintu
+    humanoid:MoveTo(doorPos)
+    task.wait(0.5)
+
+    -- Tekan F beberapa kali
+    ToggleButton.Text = "TEKAN F..."
+    PressF(8, 0.25)
+
+    -- Tunggu transisi/loading
+    ToggleButton.Text = "LOADING..."
+    task.wait(3)
+
+    -- Cek apakah sudah pindah (posisi berubah jauh dari pintu)
+    if hrp and hrp.Parent then
+        local distFromDoor = (hrp.Position - doorPos).Magnitude
+        if distFromDoor < 10 then
+            -- Belum pindah, coba sekali lagi
+            humanoid:MoveTo(doorPos)
+            task.wait(0.3)
+            PressF(5, 0.2)
+            task.wait(2)
+        end
+    end
+
+    ResetState()
+    ToggleButton.Text = "ULTIMATE AFK: ON"
+end
+
+-- Loop utama
 RS.Heartbeat:Connect(function()
     if not _G.AutoDungeon or not ScreenGui.Parent then return end
-    if portalInProgress then return end  -- jangan lakukan apapun saat proses portal
+    if portalInProgress then return end
 
     HandleResultGui()
 
     pcall(function()
         local char = Player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
+        local humanoid = char and char:FindFirstChild("Humanoid")
+        if not hrp or not humanoid then return end
+        if humanoid.Health <= 0 then return end
 
-        -- 1. AUTO SKILL QER
+        -- 1. AUTO SKILL
         if tick() - lastSkillTime >= 3 then
             for _, key in pairs({"Q", "E", "R"}) do
                 VIM:SendKeyEvent(true, key, false, game)
+                task.wait(0.02)
                 VIM:SendKeyEvent(false, key, false, game)
             end
             lastSkillTime = tick()
@@ -173,11 +270,13 @@ RS.Heartbeat:Connect(function()
 
         if targetEnemy then
             noEnemyTimer = tick()
+            -- Serang musuh
             hrp.Velocity = Vector3.new(0,0,0)
             hrp.CFrame = targetEnemy.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
             targetEnemy.Size = Vector3.new(40, 40, 40)
             targetEnemy.CanCollide = false
             game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
+
         else
             -- 3. CEK CHEST
             local chest = nil
@@ -192,63 +291,36 @@ RS.Heartbeat:Connect(function()
                 hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                 game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
 
-            elseif tick() - noEnemyTimer >= 6 and tick() - lastTeleportTime >= TELEPORT_COOLDOWN then
+            elseif tick() - noEnemyTimer >= 6 and tick() - lastTeleportTime >= 6 then
 
-                -- 4. CARI PORTAL DI workspace.RoundDoor SAJA
+                -- 4. CEK PORTAL RF DULU (Portal / PortalD)
                 local portals = GetValidPortals()
 
                 if #portals > 0 then
-                    -- Pilih portal terdekat dari player (bukan terjauh dari spawn)
-                    -- Karena di RoundDoor semua portal memang untuk next stage
-                    local bestPortal = nil
+                    -- Ambil portal terdekat
+                    local best = nil
                     local minDist = math.huge
-
                     for _, p in ipairs(portals) do
                         if p.root and p.root.Parent then
-                            local dist = (hrp.Position - p.root.Position).Magnitude
-                            if dist < minDist then
-                                minDist = dist
-                                bestPortal = p
+                            local d = (hrp.Position - p.root.Position).Magnitude
+                            if d < minDist then
+                                minDist = d
+                                best = p
                             end
                         end
                     end
 
-                    if bestPortal then
-                        portalInProgress = true  -- kunci, jangan lakukan hal lain
-
-                        -- Teleport ke portal
-                        hrp.CFrame = bestPortal.root.CFrame * CFrame.new(0, 3, 0)
-                        task.wait(0.3)
-
-                        -- Invoke RF portal
-                        pcall(function()
-                            bestPortal.rf:InvokeServer()
+                    if best then
+                        task.spawn(function()
+                            DoPortal(hrp, humanoid, best)
                         end)
-
-                        -- Tunggu loading stage baru (3 detik)
-                        task.wait(3)
-
-                        -- Update posisi setelah masuk stage baru
-                        if hrp and hrp.Parent then
-                            spawnPos = hrp.Position
-                        end
-
-                        lastTeleportTime = tick()
-                        noEnemyTimer = tick()
-                        portalInProgress = false  -- buka kunci
                     end
 
                 else
-                    -- Tidak ada portal di RoundDoor → coba pintu biasa (tombol F)
-                    local doorPart = GetRoundDoor()
-                    if doorPart then
-                        hrp.CFrame = doorPart.CFrame * CFrame.new(0, 0, 3)
-                        task.wait(0.2)
-                        VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-                        task.wait(0.1)
-                        VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-                        lastTeleportTime = tick()
-                    end
+                    -- 5. TIDAK ADA PORTAL → JALAN KE PINTU F
+                    task.spawn(function()
+                        DoDoorF(hrp, humanoid)
+                    end)
                 end
             end
         end
