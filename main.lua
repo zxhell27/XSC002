@@ -15,77 +15,81 @@ MainFrame.Draggable = true
 ToggleButton.Parent = MainFrame
 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.Text = "GOD MODE: OFF"
+ToggleButton.Text = "AUTO DUNGEON: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.TextSize = 14
 UICorner.Parent = MainFrame
 
 -- Variabel
-_G.GodMode = false
+_G.AutoDungeon = false
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
+local VIM = game:GetService("VirtualInputManager")
 
 -- Fungsi Toggle
 ToggleButton.MouseButton1Click:Connect(function()
-    _G.GodMode = not _G.GodMode
-    if _G.GodMode then
-        ToggleButton.Text = "GOD MODE: ON"
+    _G.AutoDungeon = not _G.AutoDungeon
+    if _G.AutoDungeon then
+        ToggleButton.Text = "AUTO DUNGEON: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     else
-        ToggleButton.Text = "GOD MODE: OFF"
+        ToggleButton.Text = "AUTO DUNGEON: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        -- Reset posisi jika dimatikan
-        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-            Player.Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
-        end
     end
 end)
 
--- Loop Utama (Tanpa Delay)
+-- Loop Utama
 RunService.Stepped:Connect(function()
-    if _G.GodMode then
+    if _G.AutoDungeon then
         pcall(function()
             local char = Player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local hum = char and char:FindFirstChild("Humanoid")
+            if not hrp then return end
 
-            if hrp and hum then
-                -- 1. ANTI-DEATH: Paksa Velocity jadi 0 agar tidak terlempar anti-cheat
-                hrp.Velocity = Vector3.new(0, 0, 0)
-                
-                -- 2. CARI MUSUH TERDEKAT (Targeting)
-                local target = nil
-                local dist = math.huge
-                
-                if workspace:FindFirstChild("EnemyNpc") then
-                    for _, enemy in pairs(workspace.EnemyNpc:GetChildren()) do
-                        local eHrp = enemy:FindFirstChild("HumanoidRootPart")
-                        local eHum = enemy:FindFirstChild("Humanoid")
-                        if eHrp and eHum and eHum.Health > 0 then
-                            local d = (hrp.Position - eHrp.Position).Magnitude
-                            if d < dist then
-                                dist = d
-                                target = enemy
-                            end
-                        end
-                    end
+            local enemyFolder = workspace:FindFirstChild("EnemyNpc")
+            local enemies = enemyFolder and enemyFolder:GetChildren() or {}
+            
+            -- Cek apakah ada musuh yang tersisa (HP > 0)
+            local activeEnemy = nil
+            for _, enemy in pairs(enemies) do
+                local eHum = enemy:FindFirstChild("Humanoid")
+                if eHum and eHum.Health > 0 then
+                    activeEnemy = enemy
+                    break
                 end
+            end
 
-                -- 3. POSITIONING: Melayang di atas musuh (Aman dari hit)
-                if target then
-                    -- Anda dipindahkan tepat 10 stud DI ATAS musuh
-                    -- Musuh di bawah tanah tidak bisa hit ke atas
-                    hrp.CFrame = target.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+            if activeEnemy then
+                -- LOGIKA SERANG: Melayang di atas musuh terdekat
+                local eHrp = activeEnemy:FindFirstChild("HumanoidRootPart")
+                if eHrp then
+                    hrp.Velocity = Vector3.new(0,0,0)
+                    hrp.CFrame = eHrp.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                     
-                    -- Perbesar Hitbox Musuh agar dari atas tetap kena
-                    target.HumanoidRootPart.Size = Vector3.new(30, 30, 30)
-                    target.HumanoidRootPart.CanCollide = false
+                    -- Expand Hitbox
+                    eHrp.Size = Vector3.new(30, 30, 30)
+                    eHrp.CanCollide = false
+                    
+                    -- Serang
+                    game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
                 end
+            else
+                -- LOGIKA PINTU: Jika musuh habis, cari pintu
+                local door = workspace:FindFirstChild("RoundDoor") and workspace.RoundDoor:FindFirstChild("Door") 
+                             and workspace.RoundDoor.Door:FindFirstChild("Root") 
+                             and workspace.RoundDoor.Door.Root:FindFirstChild("LocalRoundDoor")
 
-                -- 4. ULTRA ATTACK
-                local remote = game:GetService("ReplicatedStorage").Remotes.PlayerActionRE
-                remote:FireServer("SkillAction", "BaseAttack", 1)
+                if door then
+                    -- Teleport ke depan pintu
+                    hrp.CFrame = door.CFrame * CFrame.new(0, 0, 3)
+                    
+                    -- Simulasi Tekan Tombol F
+                    -- Kita kirim input F berulang kali sampai pintu terbuka/pindah area
+                    VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                    task.wait(0.1)
+                    VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                end
             end
         end)
     end
