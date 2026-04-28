@@ -5,7 +5,7 @@ local CloseButton = Instance.new("TextButton")
 local UICorner = Instance.new("UICorner")
 
 -- UI Setup
-ScreenGui.Name = "IronSoul_UltimateAFK"
+ScreenGui.Name = "IronSoul_UltimateAFK_V2"
 ScreenGui.Parent = game.CoreGui
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -39,108 +39,90 @@ local GuiService = game:GetService("GuiService")
 
 local lastSkillTime = 0
 local noEnemyTimer = tick()
-local spawnPos = nil 
+local currentSpawnPoint = nil -- Mengunci titik awal ruangan
 
--- Fungsi Utama Toggle
+-- Fungsi Update Spawn Point (Hanya saat pindah ruangan)
+local function UpdateSpawnPoint()
+    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+        currentSpawnPoint = Player.Character.HumanoidRootPart.Position
+        print("Spawn Point Terkunci: ", currentSpawnPoint)
+    end
+end
+
+-- Fungsi Toggle
 local function SetToggle(state)
     _G.AutoDungeon = state
     if _G.AutoDungeon then
         ToggleButton.Text = "ULTIMATE AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
         noEnemyTimer = tick()
-        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-            spawnPos = Player.Character.HumanoidRootPart.Position
-        end
+        UpdateSpawnPoint()
     else
         ToggleButton.Text = "ULTIMATE AFK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     end
 end
 
--- Event Klik Toggle
-ToggleButton.MouseButton1Click:Connect(function()
-    SetToggle(not _G.AutoDungeon)
-end)
+ToggleButton.MouseButton1Click:Connect(function() SetToggle(not _G.AutoDungeon) end)
+CloseButton.MouseButton1Click:Connect(function() _G.AutoDungeon = false ScreenGui:Destroy() end)
 
--- Tombol OFF Permanen (Kill Switch)
-CloseButton.MouseButton1Click:Connect(function()
-    _G.AutoDungeon = false
-    ScreenGui:Destroy()
-end)
-
--- LOGIKA AUTO-START (5 DETIK)
+-- Auto Start 5 Detik
 task.spawn(function()
     for i = 5, 1, -1 do
-        if _G.AutoDungeon then break end -- Berhenti hitung mundur jika user klik ON manual
+        if _G.AutoDungeon then break end
         ToggleButton.Text = "AUTO START IN: " .. i
         task.wait(1)
     end
-    if not _G.AutoDungeon and ScreenGui.Parent then
-        SetToggle(true)
-    end
+    if not _G.AutoDungeon and ScreenGui.Parent then SetToggle(true) end
 end)
 
--- Fungsi Play Again
-local function HandleResultGui()
-    pcall(function()
-        local resultGui = Player.PlayerGui:FindFirstChild("ResultGui")
-        if resultGui then
-            local btn = resultGui.ScreenSettlement.BtnGroup.PlayAgainBtn
-            if btn and btn.Visible and btn.AbsoluteSize.X > 0 then
-                GuiService.SelectedObject = btn
-                VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                if getconnections then
-                    for _, v in pairs(getconnections(btn.MouseButton1Click)) do v:Fire() end
-                    for _, v in pairs(getconnections(btn.Activated)) do v:Fire() end
-                end
-            end
-        end
-    end)
-end
-
--- Loop Utama (Heartbeat)
+-- Loop Utama
 RS.Heartbeat:Connect(function()
     if _G.AutoDungeon and ScreenGui.Parent then
-        HandleResultGui()
+        -- 0. CEK TOMBOL PLAY AGAIN (RESULT)
+        pcall(function()
+            local resGui = Player.PlayerGui:FindFirstChild("ResultGui")
+            if resGui and resGui.ScreenSettlement.BtnGroup.PlayAgainBtn.Visible then
+                GuiService.SelectedObject = resGui.ScreenSettlement.BtnGroup.PlayAgainBtn
+                VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+            end
+        end)
 
         pcall(function()
             local char = Player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if not hrp then return end
 
-            -- 1. AUTO SKILL QER
+            -- 1. SKILL QER
             if tick() - lastSkillTime >= 3 then
-                for _, key in pairs({"Q", "E", "R"}) do
-                    VIM:SendKeyEvent(true, key, false, game)
-                    VIM:SendKeyEvent(false, key, false, game)
+                for _, k in pairs({"Q", "E", "R"}) do
+                    VIM:SendKeyEvent(true, k, false, game)
+                    VIM:SendKeyEvent(false, k, false, game)
                 end
                 lastSkillTime = tick()
             end
 
-            -- 2. DETEKSI MUSUH
-            local targetEnemy = nil
+            -- 2. CEK MUSUH
+            local target = nil
             local enemyFolder = workspace:FindFirstChild("EnemyNpc")
             if enemyFolder then
                 for _, v in pairs(enemyFolder:GetChildren()) do
-                    local hum = v:FindFirstChild("Humanoid")
-                    local eHrp = v:FindFirstChild("HumanoidRootPart")
-                    if hum and eHrp and hum.Health > 0 then
-                        targetEnemy = eHrp
+                    if v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
+                        target = v.HumanoidRootPart
                         break
                     end
                 end
             end
 
-            if targetEnemy then
+            if target then
                 noEnemyTimer = tick()
                 hrp.Velocity = Vector3.new(0,0,0)
-                hrp.CFrame = targetEnemy.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-                targetEnemy.Size = Vector3.new(40, 40, 40)
-                targetEnemy.CanCollide = false
+                hrp.CFrame = target.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                target.Size = Vector3.new(40, 40, 40)
                 game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
             else
-                -- 3. JIKA MUSUH HABIS: CEK CHEST
+                -- 3. JIKA MUSUH HABIS: CEK PETI (CHEST)
                 local chest = nil
                 for _, v in pairs(workspace:GetChildren()) do
                     if v.Name:match("Chest") or v.Name == "TreasureChests" then
@@ -153,31 +135,35 @@ RS.Heartbeat:Connect(function()
                     hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                     game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
                 elseif tick() - noEnemyTimer >= 6 then
-                    -- 4. PORTAL ANTI-BALIK
-                    local furthestPortal = nil
+                    -- 4. LOGIKA PORTAL ANTI-BALIK
+                    local exitPortal = nil
                     local maxDist = -1
                     
                     for _, v in pairs(workspace:GetDescendants()) do
                         if v.Name == "Root" and v.Parent.Name == "Portal" then
-                            local distFromSpawn = spawnPos and (v.Position - spawnPos).Magnitude or 0
+                            -- Selalu hitung jarak portal dari titik AWAL masuk ruangan
+                            -- Bukan dari posisi karakter saat ini (yang mungkin sedang di dekat chest)
+                            local distFromSpawn = currentSpawnPoint and (v.Position - currentSpawnPoint).Magnitude or 0
+                            
+                            -- Portal keluar haruslah yang terjauh dari tempat kita masuk
                             if distFromSpawn > maxDist then
                                 maxDist = distFromSpawn
-                                furthestPortal = v
+                                exitPortal = v
                             end
                         end
                     end
 
-                    if furthestPortal then
-                        hrp.CFrame = furthestPortal.CFrame
-                        local rf = furthestPortal:FindFirstChild("RF")
+                    if exitPortal and maxDist > 40 then
+                        hrp.CFrame = exitPortal.CFrame
+                        local rf = exitPortal:FindFirstChild("RF")
                         if rf then 
                             rf:InvokeServer()
-                            task.wait(1)
-                            spawnPos = hrp.Position 
+                            task.wait(2)
+                            UpdateSpawnPoint() -- Kunci titik spawn baru untuk ruangan selanjutnya
                             noEnemyTimer = tick()
                         end
                     else
-                        -- Cari Pintu (F)
+                        -- Cari Pintu (F) sebagai cadangan
                         for _, d in pairs(workspace:GetDescendants()) do
                             if d.Name == "LocalRoundDoor" then
                                 hrp.CFrame = d.CFrame * CFrame.new(0, 0, 3)
