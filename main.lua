@@ -15,32 +15,35 @@ MainFrame.Draggable = true
 ToggleButton.Parent = MainFrame
 ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
 ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.Text = "GOD DUNGEON: OFF"
+ToggleButton.Text = "ULTIMATE AFK: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.TextSize = 14
 UICorner.Parent = MainFrame
 
--- Variabel
+-- Variabel Kontrol
 _G.AutoDungeon = false
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local VIM = game:GetService("VirtualInputManager")
+
 local lastSkillTime = 0
+local noEnemyTimer = 0 -- Timer untuk deteksi stuck
 
 -- Fungsi Toggle
 ToggleButton.MouseButton1Click:Connect(function()
     _G.AutoDungeon = not _G.AutoDungeon
     if _G.AutoDungeon then
-        ToggleButton.Text = "GOD DUNGEON: ON"
+        ToggleButton.Text = "ULTIMATE AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+        noEnemyTimer = tick() -- Reset timer saat nyala
     else
-        ToggleButton.Text = "GOD DUNGEON: OFF"
+        ToggleButton.Text = "ULTIMATE AFK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
     end
 end)
 
--- Fungsi Tekan Skill
+-- Fungsi Skill
 local function CastSkills()
     local skills = {Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R}
     for _, key in pairs(skills) do
@@ -70,7 +73,7 @@ RunService.Stepped:Connect(function()
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if not hrp then return end
 
-            -- Logika Timer Skill (Setiap 3 Detik)
+            -- 1. AUTO SKILL (3 Detik)
             if tick() - lastSkillTime >= 3 then
                 task.spawn(CastSkills)
                 lastSkillTime = tick()
@@ -79,7 +82,7 @@ RunService.Stepped:Connect(function()
             local enemyFolder = workspace:FindFirstChild("EnemyNpc")
             local enemies = enemyFolder and enemyFolder:GetChildren() or {}
             
-            -- 1. CEK MUSUH
+            -- Cek Musuh Aktif
             local activeEnemy = nil
             for _, enemy in pairs(enemies) do
                 local eHum = enemy:FindFirstChild("Humanoid")
@@ -90,6 +93,9 @@ RunService.Stepped:Connect(function()
             end
 
             if activeEnemy then
+                -- RESET TIMER JIKA ADA MUSUH
+                noEnemyTimer = tick() 
+                
                 local eHrp = activeEnemy:FindFirstChild("HumanoidRootPart")
                 if eHrp then
                     hrp.Velocity = Vector3.new(0,0,0)
@@ -99,7 +105,16 @@ RunService.Stepped:Connect(function()
                     game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
                 end
             else
-                -- 2. CEK CHEST
+                -- 2. CEK STUCK TIMER (10 Detik Tanpa Musuh)
+                if tick() - noEnemyTimer >= 10 then
+                    -- PAKSA MASUK PORTAL LEWAT REMOTE
+                    pcall(function()
+                        workspace.RoundDoor.Portal.Root.RF:InvokeServer()
+                    end)
+                    noEnemyTimer = tick() -- Reset timer agar tidak spam invoke
+                end
+
+                -- 3. CEK CHEST
                 local targetChest = FindChest()
                 if targetChest then
                     local chestPart = targetChest:FindFirstChild("Root") or targetChest:FindFirstChildWhichIsA("BasePart")
@@ -108,7 +123,7 @@ RunService.Stepped:Connect(function()
                         game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
                     end
                 else
-                    -- 3. CEK PINTU
+                    -- 4. CEK PINTU (Manual Interaction)
                     local door = workspace:FindFirstChild("RoundDoor") and workspace.RoundDoor:FindFirstChild("Door") 
                                  and workspace.RoundDoor.Door:FindFirstChild("Root") 
                                  and workspace.RoundDoor.Door.Root:FindFirstChild("LocalRoundDoor")
