@@ -15,18 +15,17 @@ MainFrame.Draggable = true
 ToggleButton.Parent = MainFrame
 ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
 ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.Text = "ULTIMATE AFK: OFF"
+ToggleButton.Text = "AUTO DUNGEON OP: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.TextSize = 14
 UICorner.Parent = MainFrame
 
--- Variabel Kontrol
+-- Variabel
 _G.AutoDungeon = false
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local VIM = game:GetService("VirtualInputManager")
-
 local lastSkillTime = 0
 local noEnemyTimer = 0 
 
@@ -34,48 +33,34 @@ local noEnemyTimer = 0
 ToggleButton.MouseButton1Click:Connect(function()
     _G.AutoDungeon = not _G.AutoDungeon
     if _G.AutoDungeon then
-        ToggleButton.Text = "ULTIMATE AFK: ON"
+        ToggleButton.Text = "AUTO DUNGEON OP: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
         noEnemyTimer = tick() 
     else
-        ToggleButton.Text = "ULTIMATE AFK: OFF"
+        ToggleButton.Text = "AUTO DUNGEON OP: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
     end
 end)
 
--- Fungsi Skill (Q, E, R)
-local function CastSkills()
-    local skills = {Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R}
-    for _, key in pairs(skills) do
-        VIM:SendKeyEvent(true, key, false, game)
-        task.wait(0.05)
-        VIM:SendKeyEvent(false, key, false, game)
-    end
-end
+-- Fungsi Cari Portal Terdekat (Validasi Keluar)
+local function EnterCorrectPortal()
+    local char = Player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
--- Fungsi Mencari Chest
-local function FindChest()
-    if workspace:FindFirstChild("TreasureChests") then
-        local chests = workspace.TreasureChests:GetChildren()
-        if #chests > 0 then return chests[1] end
-    end
-    for _, v in pairs(workspace:GetChildren()) do
-        if v.Name:match("Chest%d+") then return v end
-    end
-    return nil
-end
-
--- Fungsi Mencari Portal secara Dinamis
-local function TeleportToPortal()
-    local roundDoor = workspace:FindFirstChild("RoundDoor")
-    if roundDoor then
-        for _, obj in pairs(roundDoor:GetChildren()) do
-            -- Mencari objek yang mengandung nama PortalBlue (tidak peduli nomor indeksnya)
-            if obj.Name:find("PortalBlue") then
-                local portalRoot = obj:FindFirstChild("Root")
-                if portalRoot and portalRoot:FindFirstChild("RF") then
+    -- Mencari semua portal di dalam RoundDoor
+    if workspace:FindFirstChild("RoundDoor") then
+        for _, v in pairs(workspace.RoundDoor:GetDescendants()) do
+            -- Mencari objek 'Root' yang berada di dalam folder 'Portal'
+            if v.Name == "Root" and v.Parent.Name == "Portal" then
+                local rf = v:FindFirstChild("RF")
+                if rf then
+                    -- Teleport tipis ke posisi portal agar valid di server
+                    hrp.CFrame = v.CFrame
+                    task.wait(0.1)
+                    -- Jalankan Invoke
                     pcall(function()
-                        portalRoot.RF:InvokeServer()
+                        rf:InvokeServer()
                     end)
                     return true
                 end
@@ -93,16 +78,20 @@ RunService.Stepped:Connect(function()
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if not hrp then return end
 
-            -- 1. AUTO SKILL (3 Detik)
+            -- 1. AUTO SKILL QER
             if tick() - lastSkillTime >= 3 then
-                task.spawn(CastSkills)
+                local skills = {Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R}
+                for _, k in pairs(skills) do
+                    VIM:SendKeyEvent(true, k, false, game)
+                    VIM:SendKeyEvent(false, k, false, game)
+                end
                 lastSkillTime = tick()
             end
 
             local enemyFolder = workspace:FindFirstChild("EnemyNpc")
             local enemies = enemyFolder and enemyFolder:GetChildren() or {}
-            
             local activeEnemy = nil
+            
             for _, enemy in pairs(enemies) do
                 local eHum = enemy:FindFirstChild("Humanoid")
                 if eHum and eHum.Health > 0 then
@@ -122,35 +111,32 @@ RunService.Stepped:Connect(function()
                     game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
                 end
             else
-                -- 2. CEK STUCK TIMER (10 Detik Tanpa Musuh)
+                -- 2. LOGIKA ANTI-STUCK / PORTAL (10 Detik Musuh Habis)
                 if tick() - noEnemyTimer >= 10 then
-                    local success = TeleportToPortal()
-                    if success then
-                        noEnemyTimer = tick() -- Reset jika berhasil invoke
-                    end
+                    local success = EnterCorrectPortal()
+                    if success then noEnemyTimer = tick() end
                 end
 
-                -- 3. CEK CHEST
-                local targetChest = FindChest()
-                if targetChest then
-                    local chestPart = targetChest:FindFirstChild("Root") or targetChest:FindFirstChildWhichIsA("BasePart")
-                    if chestPart then
-                        hrp.CFrame = chestPart.CFrame * CFrame.new(0, 5, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-                        game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
+                -- 3. AUTO CHEST
+                for _, v in pairs(workspace:GetChildren()) do
+                    if v.Name:match("Chest") or v.Name == "TreasureChests" then
+                        local cp = v:FindFirstChild("Root") or v:FindFirstChildWhichIsA("BasePart")
+                        if cp then
+                            hrp.CFrame = cp.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                            game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
+                            break
+                        end
                     end
-                else
-                    -- 4. CEK PINTU (Manual F)
-                    local roundDoor = workspace:FindFirstChild("RoundDoor")
-                    if roundDoor then
-                        -- Mencari Door.Root.LocalRoundDoor secara dinamis
-                        for _, d in pairs(roundDoor:GetDescendants()) do
-                            if d.Name == "LocalRoundDoor" then
-                                hrp.CFrame = d.CFrame * CFrame.new(0, 0, 3)
-                                VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-                                task.wait(0.1)
-                                VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-                                break
-                            end
+                end
+                
+                -- 4. PINTU MANUAL (F)
+                if workspace:FindFirstChild("RoundDoor") then
+                    for _, d in pairs(workspace.RoundDoor:GetDescendants()) do
+                        if d.Name == "LocalRoundDoor" then
+                            hrp.CFrame = d.CFrame * CFrame.new(0, 0, 3)
+                            VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                            task.wait(0.05)
+                            VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
                         end
                     end
                 end
