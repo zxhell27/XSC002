@@ -5,7 +5,7 @@ local CloseButton = Instance.new("TextButton")
 local UICorner = Instance.new("UICorner")
 
 -- UI Setup
-ScreenGui.Name = "IronSoul_UltimateAFK_V2"
+ScreenGui.Name = "IronSoul_V3_Blacklist"
 ScreenGui.Parent = game.CoreGui
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -17,7 +17,7 @@ MainFrame.Draggable = true
 ToggleButton.Parent = MainFrame
 ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.Text = "ULTIMATE AFK: OFF"
+ToggleButton.Text = "BLACK_MEM AFK: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.TextSize = 12
@@ -28,9 +28,8 @@ CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
 CloseButton.Position = UDim2.new(1, -20, 0, 0)
 CloseButton.Size = UDim2.new(0, 20, 0, 20)
 CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 
--- Variabel Kontrol
+-- Variabel Kontrol & Memori
 _G.AutoDungeon = false
 local Player = game.Players.LocalPlayer
 local RS = game:GetService("RunService")
@@ -39,26 +38,23 @@ local GuiService = game:GetService("GuiService")
 
 local lastSkillTime = 0
 local noEnemyTimer = tick()
-local currentSpawnPoint = nil -- Mengunci titik awal ruangan
+local portalBlacklist = {} -- Memori portal yang sudah pernah dimasuki
 
--- Fungsi Update Spawn Point (Hanya saat pindah ruangan)
-local function UpdateSpawnPoint()
-    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        currentSpawnPoint = Player.Character.HumanoidRootPart.Position
-        print("Spawn Point Terkunci: ", currentSpawnPoint)
-    end
+-- Fungsi Reset Memori (Panggil saat mulai game baru)
+local function ResetMemori()
+    portalBlacklist = {}
+    print("Memori Portal Direset.")
 end
 
 -- Fungsi Toggle
 local function SetToggle(state)
     _G.AutoDungeon = state
     if _G.AutoDungeon then
-        ToggleButton.Text = "ULTIMATE AFK: ON"
+        ToggleButton.Text = "BLACK_MEM AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
         noEnemyTimer = tick()
-        UpdateSpawnPoint()
     else
-        ToggleButton.Text = "ULTIMATE AFK: OFF"
+        ToggleButton.Text = "BLACK_MEM AFK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     end
 end
@@ -66,23 +62,24 @@ end
 ToggleButton.MouseButton1Click:Connect(function() SetToggle(not _G.AutoDungeon) end)
 CloseButton.MouseButton1Click:Connect(function() _G.AutoDungeon = false ScreenGui:Destroy() end)
 
--- Auto Start 5 Detik
+-- Auto Start
 task.spawn(function()
     for i = 5, 1, -1 do
         if _G.AutoDungeon then break end
-        ToggleButton.Text = "AUTO START IN: " .. i
+        ToggleButton.Text = "AUTO START: " .. i
         task.wait(1)
     end
-    if not _G.AutoDungeon and ScreenGui.Parent then SetToggle(true) end
+    if not _G.AutoDungeon then SetToggle(true) end
 end)
 
 -- Loop Utama
 RS.Heartbeat:Connect(function()
     if _G.AutoDungeon and ScreenGui.Parent then
-        -- 0. CEK TOMBOL PLAY AGAIN (RESULT)
+        -- CEK RESULT (Play Again)
         pcall(function()
             local resGui = Player.PlayerGui:FindFirstChild("ResultGui")
             if resGui and resGui.ScreenSettlement.BtnGroup.PlayAgainBtn.Visible then
+                ResetMemori() -- Reset blacklist saat mulai ulang
                 GuiService.SelectedObject = resGui.ScreenSettlement.BtnGroup.PlayAgainBtn
                 VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
                 VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
@@ -92,9 +89,10 @@ RS.Heartbeat:Connect(function()
         pcall(function()
             local char = Player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
+            local hum = char and char:FindFirstChild("Humanoid")
+            if not hrp or not hum then return end
 
-            -- 1. SKILL QER
+            -- 1. AUTO SKILL
             if tick() - lastSkillTime >= 3 then
                 for _, k in pairs({"Q", "E", "R"}) do
                     VIM:SendKeyEvent(true, k, false, game)
@@ -103,7 +101,7 @@ RS.Heartbeat:Connect(function()
                 lastSkillTime = tick()
             end
 
-            -- 2. CEK MUSUH
+            -- 2. DETEKSI MUSUH
             local target = nil
             local enemyFolder = workspace:FindFirstChild("EnemyNpc")
             if enemyFolder then
@@ -122,10 +120,10 @@ RS.Heartbeat:Connect(function()
                 target.Size = Vector3.new(40, 40, 40)
                 game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
             else
-                -- 3. JIKA MUSUH HABIS: CEK PETI (CHEST)
+                -- 3. JIKA MUSUH HABIS: CEK PETI
                 local chest = nil
                 for _, v in pairs(workspace:GetChildren()) do
-                    if v.Name:match("Chest") or v.Name == "TreasureChests" then
+                    if v.Name:match("Chest") then
                         chest = v:FindFirstChild("Root") or v:FindFirstChildWhichIsA("BasePart")
                         if chest then break end
                     end
@@ -134,36 +132,42 @@ RS.Heartbeat:Connect(function()
                 if chest then
                     hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                     game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
-                elseif tick() - noEnemyTimer >= 6 then
-                    -- 4. LOGIKA PORTAL ANTI-BALIK
-                    local exitPortal = nil
-                    local maxDist = -1
+                elseif tick() - noEnemyTimer >= 5 then
+                    -- 4. LOGIKA PORTAL TERDEKAT DENGAN BLACKLIST
+                    local closestPortal = nil
+                    local minHealthDist = math.huge
                     
                     for _, v in pairs(workspace:GetDescendants()) do
                         if v.Name == "Root" and v.Parent.Name == "Portal" then
-                            -- Selalu hitung jarak portal dari titik AWAL masuk ruangan
-                            -- Bukan dari posisi karakter saat ini (yang mungkin sedang di dekat chest)
-                            local distFromSpawn = currentSpawnPoint and (v.Position - currentSpawnPoint).Magnitude or 0
-                            
-                            -- Portal keluar haruslah yang terjauh dari tempat kita masuk
-                            if distFromSpawn > maxDist then
-                                maxDist = distFromSpawn
-                                exitPortal = v
+                            -- Cek apakah portal ini sudah pernah dimasuki (Blacklist)
+                            local portalID = tostring(v.Position)
+                            if not portalBlacklist[portalID] then
+                                local dist = (v.Position - hrp.Position).Magnitude
+                                if dist < minHealthDist then
+                                    minHealthDist = dist
+                                    closestPortal = v
+                                end
                             end
                         end
                     end
 
-                    if exitPortal and maxDist > 40 then
-                        hrp.CFrame = exitPortal.CFrame
-                        local rf = exitPortal:FindFirstChild("RF")
-                        if rf then 
-                            rf:InvokeServer()
-                            task.wait(2)
-                            UpdateSpawnPoint() -- Kunci titik spawn baru untuk ruangan selanjutnya
-                            noEnemyTimer = tick()
+                    if closestPortal then
+                        -- Karakter BERLARI ke portal (bukan instan teleport agar server sinkron)
+                        hum:MoveTo(closestPortal.Position)
+                        
+                        -- Jika sudah dekat portal, baru invoke
+                        if (closestPortal.Position - hrp.Position).Magnitude < 15 then
+                            local rf = closestPortal:FindFirstChild("RF")
+                            if rf then 
+                                -- Simpan ke memori blacklist
+                                portalBlacklist[tostring(closestPortal.Position)] = true
+                                rf:InvokeServer()
+                                task.wait(1.5)
+                                noEnemyTimer = tick()
+                            end
                         end
                     else
-                        -- Cari Pintu (F) sebagai cadangan
+                        -- Cadangan Pintu
                         for _, d in pairs(workspace:GetDescendants()) do
                             if d.Name == "LocalRoundDoor" then
                                 hrp.CFrame = d.CFrame * CFrame.new(0, 0, 3)
