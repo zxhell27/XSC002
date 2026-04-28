@@ -15,7 +15,7 @@ MainFrame.Draggable = true
 ToggleButton.Parent = MainFrame
 ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.Text = "ANTI-BACK AFK: OFF"
+ToggleButton.Text = "ULTIMATE AFK: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.TextSize = 14
@@ -26,23 +26,46 @@ _G.AutoDungeon = false
 local Player = game.Players.LocalPlayer
 local RS = game:GetService("RunService")
 local VIM = game:GetService("VirtualInputManager")
+local GuiService = game:GetService("GuiService")
 
 local lastSkillTime = 0
 local noEnemyTimer = tick()
-local spawnPos = nil -- Untuk melacak titik awal ruangan
+local spawnPos = nil 
+
+-- Fungsi Klik Otomatis Play Again
+local function HandleResultGui()
+    pcall(function()
+        local resultGui = Player.PlayerGui:FindFirstChild("ResultGui")
+        if resultGui then
+            local btn = resultGui.ScreenSettlement.BtnGroup.PlayAgainBtn
+            if btn and btn.Visible and btn.AbsoluteSize.X > 0 then
+                -- Simulasi Klik
+                GuiService.SelectedObject = btn
+                VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                
+                -- Backup Klik via Connections
+                if getconnections then
+                    for _, v in pairs(getconnections(btn.MouseButton1Click)) do v:Fire() end
+                    for _, v in pairs(getconnections(btn.Activated)) do v:Fire() end
+                end
+            end
+        end
+    end)
+end
 
 -- Fungsi Toggle
 ToggleButton.MouseButton1Click:Connect(function()
     _G.AutoDungeon = not _G.AutoDungeon
     if _G.AutoDungeon then
-        ToggleButton.Text = "ANTI-BACK AFK: ON"
+        ToggleButton.Text = "ULTIMATE AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
         noEnemyTimer = tick()
         if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
             spawnPos = Player.Character.HumanoidRootPart.Position
         end
     else
-        ToggleButton.Text = "ANTI-BACK AFK: OFF"
+        ToggleButton.Text = "ULTIMATE AFK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     end
 end)
@@ -50,12 +73,15 @@ end)
 -- Loop Utama
 RS.Heartbeat:Connect(function()
     if _G.AutoDungeon then
+        -- Selalu cek tombol Play Again setiap frame
+        HandleResultGui()
+
         pcall(function()
             local char = Player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if not hrp then return end
 
-            -- 1. AUTO SKILL QER
+            -- 1. AUTO SKILL QER (3 Detik Sekali)
             if tick() - lastSkillTime >= 3 then
                 for _, key in pairs({"Q", "E", "R"}) do
                     VIM:SendKeyEvent(true, key, false, game)
@@ -86,9 +112,7 @@ RS.Heartbeat:Connect(function()
                 targetEnemy.CanCollide = false
                 game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
             else
-                -- 3. JIKA MUSUH HABIS
-                
-                -- Cari Chest Dahulu
+                -- 3. JIKA MUSUH HABIS: CEK CHEST
                 local chest = nil
                 for _, v in pairs(workspace:GetChildren()) do
                     if v.Name:match("Chest") or v.Name == "TreasureChests" then
@@ -101,15 +125,12 @@ RS.Heartbeat:Connect(function()
                     hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                     game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
                 elseif tick() - noEnemyTimer >= 6 then
-                    -- 4. LOGIKA PORTAL ANTI-BALIK
+                    -- 4. LOGIKA PORTAL & PINTU
                     local furthestPortal = nil
                     local maxDist = -1
                     
-                    -- Scan semua portal di workspace
                     for _, v in pairs(workspace:GetDescendants()) do
                         if v.Name == "Root" and v.Parent.Name == "Portal" then
-                            -- Hitung jarak portal dari titik awal masuk ruangan
-                            -- Portal keluar pasti yang paling jauh dari tempat kita spawn
                             local distFromSpawn = spawnPos and (v.Position - spawnPos).Magnitude or 0
                             if distFromSpawn > maxDist then
                                 maxDist = distFromSpawn
@@ -124,12 +145,11 @@ RS.Heartbeat:Connect(function()
                         if rf then 
                             rf:InvokeServer()
                             task.wait(1)
-                            -- Update spawnPos untuk ruangan berikutnya setelah pindah
                             spawnPos = hrp.Position 
                             noEnemyTimer = tick()
                         end
                     else
-                        -- Jika portal tidak ketemu, cari pintu (LocalRoundDoor)
+                        -- Cari Pintu (F)
                         for _, d in pairs(workspace:GetDescendants()) do
                             if d.Name == "LocalRoundDoor" then
                                 hrp.CFrame = d.CFrame * CFrame.new(0, 0, 3)
