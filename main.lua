@@ -4,7 +4,6 @@ local ToggleButton = Instance.new("TextButton")
 local CloseButton = Instance.new("TextButton")
 local UICorner = Instance.new("UICorner")
 
--- UI Setup
 ScreenGui.Name = "IronSoul_UltimateAFK"
 ScreenGui.Parent = game.CoreGui
 MainFrame.Parent = ScreenGui
@@ -30,7 +29,6 @@ CloseButton.Size = UDim2.new(0, 20, 0, 20)
 CloseButton.Text = "X"
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 
--- Variabel Kontrol
 _G.AutoDungeon = false
 local Player = game.Players.LocalPlayer
 local RS = game:GetService("RunService")
@@ -40,34 +38,60 @@ local GuiService = game:GetService("GuiService")
 local lastSkillTime = 0
 local noEnemyTimer = tick()
 local spawnPos = nil
-
--- PERBAIKAN: Sistem anti-skip portal
 local lastTeleportTime = 0
-local TELEPORT_COOLDOWN = 5        -- detik tunggu setelah masuk portal
-local usedPortalPositions = {}     -- blacklist posisi portal yang sudah dipakai
-local PORTAL_BLACKLIST_RADIUS = 20 -- jarak minimum untuk dianggap portal yang sama
+local TELEPORT_COOLDOWN = 6
+local portalInProgress = false  -- flag: sedang proses masuk portal
 
--- Fungsi cek apakah portal sudah pernah dipakai
-local function IsPortalUsed(pos)
-    for _, usedPos in ipairs(usedPortalPositions) do
-        if (pos - usedPos).Magnitude < PORTAL_BLACKLIST_RADIUS then
-            return true
+-- Ambil semua portal HANYA dari workspace.RoundDoor yang punya RF
+-- Abaikan workspace.World.Portal (portal dunia)
+local function GetValidPortals()
+    local portals = {}
+    local roundDoor = workspace:FindFirstChild("RoundDoor")
+    if not roundDoor then return portals end
+
+    for _, child in ipairs(roundDoor:GetChildren()) do
+        -- child bisa: Door, Portal, PortalD
+        -- Skip "Door" karena tidak punya RF (pakai tombol F)
+        local root = child:FindFirstChild("Root")
+        if root then
+            local rf = root:FindFirstChildWhichIsA("RemoteFunction")
+            if rf then
+                -- Ini portal valid (Portal atau PortalD)
+                table.insert(portals, {root = root, rf = rf, name = child.Name})
+            end
         end
     end
-    return false
+    return portals
 end
 
--- Fungsi toggle utama
+-- Ambil pintu biasa (pakai tombol F) — child "Door" di RoundDoor
+local function GetRoundDoor()
+    local roundDoor = workspace:FindFirstChild("RoundDoor")
+    if not roundDoor then return nil end
+    local door = roundDoor:FindFirstChild("Door")
+    if not door then return nil end
+    -- Ambil part apapun dari doorL atau doorR sebagai target teleport
+    local doorL = door:FindFirstChild("doorL")
+    local part = doorL and doorL:FindFirstChildWhichIsA("BasePart")
+    return part
+end
+
+local function ResetState()
+    noEnemyTimer = tick()
+    lastTeleportTime = tick()
+    portalInProgress = false
+    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+        spawnPos = Player.Character.HumanoidRootPart.Position
+    end
+end
+
 local function SetToggle(state)
     _G.AutoDungeon = state
     if _G.AutoDungeon then
         ToggleButton.Text = "ULTIMATE AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-        noEnemyTimer = tick()
-        usedPortalPositions = {} -- reset blacklist saat mulai
-        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-            spawnPos = Player.Character.HumanoidRootPart.Position
-        end
+        portalInProgress = false
+        ResetState()
     else
         ToggleButton.Text = "ULTIMATE AFK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
@@ -83,7 +107,6 @@ CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
--- Auto-start 5 detik
 task.spawn(function()
     for i = 5, 1, -1 do
         if _G.AutoDungeon then break end
@@ -95,7 +118,6 @@ task.spawn(function()
     end
 end)
 
--- Fungsi Play Again
 local function HandleResultGui()
     pcall(function()
         local resultGui = Player.PlayerGui:FindFirstChild("ResultGui")
@@ -109,145 +131,126 @@ local function HandleResultGui()
                     for _, v in pairs(getconnections(btn.MouseButton1Click)) do v:Fire() end
                     for _, v in pairs(getconnections(btn.Activated)) do v:Fire() end
                 end
-                -- Reset semua state saat play again
-                usedPortalPositions = {}
-                lastTeleportTime = tick()
-                noEnemyTimer = tick()
-                if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-                    spawnPos = Player.Character.HumanoidRootPart.Position
-                end
+                ResetState()
             end
         end
     end)
 end
 
--- Loop Utama
 RS.Heartbeat:Connect(function()
-    if _G.AutoDungeon and ScreenGui.Parent then
-        HandleResultGui()
+    if not _G.AutoDungeon or not ScreenGui.Parent then return end
+    if portalInProgress then return end  -- jangan lakukan apapun saat proses portal
 
-        pcall(function()
-            local char = Player.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
+    HandleResultGui()
 
-            -- 1. AUTO SKILL QER
-            if tick() - lastSkillTime >= 3 then
-                for _, key in pairs({"Q", "E", "R"}) do
-                    VIM:SendKeyEvent(true, key, false, game)
-                    VIM:SendKeyEvent(false, key, false, game)
+    pcall(function()
+        local char = Player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        -- 1. AUTO SKILL QER
+        if tick() - lastSkillTime >= 3 then
+            for _, key in pairs({"Q", "E", "R"}) do
+                VIM:SendKeyEvent(true, key, false, game)
+                VIM:SendKeyEvent(false, key, false, game)
+            end
+            lastSkillTime = tick()
+        end
+
+        -- 2. DETEKSI MUSUH
+        local targetEnemy = nil
+        local enemyFolder = workspace:FindFirstChild("EnemyNpc")
+        if enemyFolder then
+            for _, v in ipairs(enemyFolder:GetChildren()) do
+                local hum = v:FindFirstChild("Humanoid")
+                local eHrp = v:FindFirstChild("HumanoidRootPart")
+                if hum and eHrp and hum.Health > 0 then
+                    targetEnemy = eHrp
+                    break
                 end
-                lastSkillTime = tick()
+            end
+        end
+
+        if targetEnemy then
+            noEnemyTimer = tick()
+            hrp.Velocity = Vector3.new(0,0,0)
+            hrp.CFrame = targetEnemy.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+            targetEnemy.Size = Vector3.new(40, 40, 40)
+            targetEnemy.CanCollide = false
+            game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
+        else
+            -- 3. CEK CHEST
+            local chest = nil
+            for _, v in ipairs(workspace:GetChildren()) do
+                if v.Name:match("Chest") or v.Name == "TreasureChests" then
+                    chest = v:FindFirstChild("Root") or v:FindFirstChildWhichIsA("BasePart")
+                    if chest then break end
+                end
             end
 
-            -- 2. DETEKSI MUSUH
-            local targetEnemy = nil
-            local enemyFolder = workspace:FindFirstChild("EnemyNpc")
-            if enemyFolder then
-                for _, v in pairs(enemyFolder:GetChildren()) do
-                    local hum = v:FindFirstChild("Humanoid")
-                    local eHrp = v:FindFirstChild("HumanoidRootPart")
-                    if hum and eHrp and hum.Health > 0 then
-                        targetEnemy = eHrp
-                        break
-                    end
-                end
-            end
-
-            if targetEnemy then
-                noEnemyTimer = tick()
-                hrp.Velocity = Vector3.new(0,0,0)
-                hrp.CFrame = targetEnemy.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-                targetEnemy.Size = Vector3.new(40, 40, 40)
-                targetEnemy.CanCollide = false
+            if chest then
+                hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                 game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
-            else
-                -- 3. CEK CHEST
-                local chest = nil
-                for _, v in pairs(workspace:GetChildren()) do
-                    if v.Name:match("Chest") or v.Name == "TreasureChests" then
-                        chest = v:FindFirstChild("Root") or v:FindFirstChildWhichIsA("BasePart")
-                        if chest then break end
-                    end
-                end
 
-                if chest then
-                    hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-                    game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
+            elseif tick() - noEnemyTimer >= 6 and tick() - lastTeleportTime >= TELEPORT_COOLDOWN then
 
-                -- PERBAIKAN: Cek cooldown dulu sebelum cari portal
-                elseif tick() - noEnemyTimer >= 6 and tick() - lastTeleportTime >= TELEPORT_COOLDOWN then
+                -- 4. CARI PORTAL DI workspace.RoundDoor SAJA
+                local portals = GetValidPortals()
 
-                    -- 4. CARI PORTAL (ANTI-SKIP)
-                    -- Prioritas: portal terjauh dari spawn yang BELUM dipakai
+                if #portals > 0 then
+                    -- Pilih portal terdekat dari player (bukan terjauh dari spawn)
+                    -- Karena di RoundDoor semua portal memang untuk next stage
                     local bestPortal = nil
-                    local maxDist = -1
+                    local minDist = math.huge
 
-                    for _, v in pairs(workspace:GetDescendants()) do
-                        if v.Name == "Root" and v.Parent and v.Parent.Name == "Portal" then
-                            local pos = v.Position
-
-                            -- Skip portal yang sudah dipakai sebelumnya
-                            if not IsPortalUsed(pos) then
-                                local distFromSpawn = spawnPos and (pos - spawnPos).Magnitude or 0
-                                -- Pilih portal terjauh dari titik spawn stage ini
-                                if distFromSpawn > maxDist then
-                                    maxDist = distFromSpawn
-                                    bestPortal = v
-                                end
+                    for _, p in ipairs(portals) do
+                        if p.root and p.root.Parent then
+                            local dist = (hrp.Position - p.root.Position).Magnitude
+                            if dist < minDist then
+                                minDist = dist
+                                bestPortal = p
                             end
                         end
                     end
 
                     if bestPortal then
+                        portalInProgress = true  -- kunci, jangan lakukan hal lain
+
                         -- Teleport ke portal
-                        hrp.CFrame = bestPortal.CFrame
+                        hrp.CFrame = bestPortal.root.CFrame * CFrame.new(0, 3, 0)
+                        task.wait(0.3)
 
-                        local rf = bestPortal:FindFirstChild("RF")
-                        if rf then
-                            -- Catat portal ini sebagai "sudah dipakai"
-                            table.insert(usedPortalPositions, bestPortal.Position)
+                        -- Invoke RF portal
+                        pcall(function()
+                            bestPortal.rf:InvokeServer()
+                        end)
 
-                            rf:InvokeServer()
-                            lastTeleportTime = tick() -- mulai cooldown
+                        -- Tunggu loading stage baru (3 detik)
+                        task.wait(3)
 
-                            -- Tunggu player benar-benar pindah stage
-                            task.wait(3)
-
-                            -- Update spawnPos ke posisi baru (stage baru)
-                            if hrp and hrp.Parent then
-                                spawnPos = hrp.Position
-                            end
-                            noEnemyTimer = tick()
-                        end
-                    else
-                        -- Semua portal sudah dipakai → reset blacklist (stage baru?)
-                        -- atau cari pintu
-                        local allPortalCount = 0
-                        for _, v in pairs(workspace:GetDescendants()) do
-                            if v.Name == "Root" and v.Parent and v.Parent.Name == "Portal" then
-                                allPortalCount = allPortalCount + 1
-                            end
+                        -- Update posisi setelah masuk stage baru
+                        if hrp and hrp.Parent then
+                            spawnPos = hrp.Position
                         end
 
-                        -- Kalau tidak ada portal sama sekali → cari pintu
-                        if allPortalCount == 0 then
-                            for _, d in pairs(workspace:GetDescendants()) do
-                                if d.Name == "LocalRoundDoor" then
-                                    hrp.CFrame = d.CFrame * CFrame.new(0, 0, 3)
-                                    VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-                                    VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-                                    break
-                                end
-                            end
-                        else
-                            -- Ada portal tapi semua di-blacklist → reset blacklist
-                            -- (kemungkinan stage baru load dengan portal posisi berbeda)
-                            usedPortalPositions = {}
-                        end
+                        lastTeleportTime = tick()
+                        noEnemyTimer = tick()
+                        portalInProgress = false  -- buka kunci
+                    end
+
+                else
+                    -- Tidak ada portal di RoundDoor → coba pintu biasa (tombol F)
+                    local doorPart = GetRoundDoor()
+                    if doorPart then
+                        hrp.CFrame = doorPart.CFrame * CFrame.new(0, 0, 3)
+                        task.wait(0.2)
+                        VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                        task.wait(0.1)
+                        VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                        lastTeleportTime = tick()
                     end
                 end
             end
-        end)
-    end
+        end
+    end)
 end)
