@@ -38,73 +38,33 @@ local GuiService = game:GetService("GuiService")
 local lastSkillTime = 0
 local noEnemyTimer = tick()
 local lastTeleportTime = 0
-local isBusy = false  -- sedang proses portal/door
+local isBusy = false
 
 local function HasEnemy()
-    local enemyFolder = workspace:FindFirstChild("EnemyNpc")
-    if not enemyFolder then return false end
-    for _, v in ipairs(enemyFolder:GetChildren()) do
+    local folder = workspace:FindFirstChild("EnemyNpc")
+    if not folder then return false end
+    for _, v in ipairs(folder:GetChildren()) do
         local hum = v:FindFirstChild("Humanoid")
-        local eHrp = v:FindFirstChild("HumanoidRootPart")
-        if hum and eHrp and hum.Health > 0 then
-            return true
-        end
+        local hrp = v:FindFirstChild("HumanoidRootPart")
+        if hum and hrp and hum.Health > 0 then return true end
     end
     return false
 end
 
 local function GetEnemy()
-    local enemyFolder = workspace:FindFirstChild("EnemyNpc")
-    if not enemyFolder then return nil end
-    for _, v in ipairs(enemyFolder:GetChildren()) do
+    local folder = workspace:FindFirstChild("EnemyNpc")
+    if not folder then return nil end
+    for _, v in ipairs(folder:GetChildren()) do
         local hum = v:FindFirstChild("Humanoid")
-        local eHrp = v:FindFirstChild("HumanoidRootPart")
-        if hum and eHrp and hum.Health > 0 then
-            return eHrp
-        end
+        local hrp = v:FindFirstChild("HumanoidRootPart")
+        if hum and hrp and hum.Health > 0 then return hrp end
     end
     return nil
 end
 
--- Kumpulkan semua portal di RoundDoor yang punya RF
-local function GetAllPortals()
-    local list = {}
-    local roundDoor = workspace:FindFirstChild("RoundDoor")
-    if not roundDoor then return list end
-    for _, child in ipairs(roundDoor:GetChildren()) do
-        local root = child:FindFirstChild("Root")
-        if root then
-            local rf = root:FindFirstChildWhichIsA("RemoteFunction")
-            if rf then
-                table.insert(list, {root = root, rf = rf, name = child.Name})
-            end
-        end
-    end
-    return list
-end
-
--- Kumpulkan semua door F (tidak punya RF)
-local function GetAllDoors()
-    local list = {}
-    local roundDoor = workspace:FindFirstChild("RoundDoor")
-    if not roundDoor then return list end
-    for _, child in ipairs(roundDoor:GetChildren()) do
-        if not child:FindFirstChild("Root") or not child:FindFirstChild("Root"):FindFirstChildWhichIsA("RemoteFunction") then
-            -- Cari semua BasePart di dalamnya
-            for _, part in ipairs(child:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    table.insert(list, part)
-                    break
-                end
-            end
-        end
-    end
-    return list
-end
-
 local function SetToggle(state)
     _G.AutoDungeon = state
-    if _G.AutoDungeon then
+    if state then
         ToggleButton.Text = "ULTIMATE AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
         noEnemyTimer = tick()
@@ -159,65 +119,94 @@ local function HandleResultGui()
     end)
 end
 
--- PROSES UTAMA: teleport ke semua portal satu per satu sampai ketemu musuh
+-- CARI MUSUH: teleport ke semua portal & door satu per satu
 local function DoFindEnemy()
     isBusy = true
+
     local char = Player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then isBusy = false return end
 
-    -- Coba semua portal RF dulu
-    local portals = GetAllPortals()
-    ToggleButton.Text = "SCAN " .. #portals .. " PORTAL..."
+    local roundDoor = workspace:FindFirstChild("RoundDoor")
+    if not roundDoor then isBusy = false return end
 
-    for i, p in ipairs(portals) do
-        if not _G.AutoDungeon then break end
-        if HasEnemy() then break end
+    -- Kumpulkan semua target: portal RF + door F
+    local targets = {}
 
-        if p.root and p.root.Parent then
-            ToggleButton.Text = "PORTAL " .. i .. "/" .. #portals
-
-            -- Teleport ke portal
-            hrp.CFrame = p.root.CFrame * CFrame.new(0, 3, 0)
-            task.wait(0.3)
-
-            -- Invoke RF
-            pcall(function() p.rf:InvokeServer() end)
-            task.wait(2)  -- tunggu efek portal
-
-            -- Cek musuh setelah masuk
-            if HasEnemy() then
-                ToggleButton.Text = "MUSUH DITEMUKAN!"
-                break
+    for _, child in ipairs(roundDoor:GetChildren()) do
+        local root = child:FindFirstChild("Root")
+        if root then
+            local rf = root:FindFirstChildWhichIsA("RemoteFunction")
+            if rf then
+                -- Portal dengan RF
+                table.insert(targets, {
+                    type = "portal",
+                    pos  = root.Position,
+                    root = root,
+                    rf   = rf,
+                    name = child.Name
+                })
             end
-
-            task.wait(0.5)
+        else
+            -- Door tanpa Root/RF → pakai F
+            -- Cari BasePart pertama di dalamnya
+            for _, desc in ipairs(child:GetDescendants()) do
+                if desc:IsA("BasePart") then
+                    table.insert(targets, {
+                        type = "door",
+                        pos  = desc.Position,
+                        part = desc,
+                        name = child.Name
+                    })
+                    break
+                end
+            end
         end
     end
 
-    -- Kalau masih belum ada musuh, coba door F
-    if not HasEnemy() then
-        local doors = GetAllDoors()
-        for i, doorPart in ipairs(doors) do
-            if not _G.AutoDungeon then break end
-            if HasEnemy() then break end
+    print("Total target ditemukan: " .. #targets)
 
-            ToggleButton.Text = "DOOR F " .. i .. "/" .. #doors
+    for i, t in ipairs(targets) do
+        if not _G.AutoDungeon then break end
+        if HasEnemy() then break end
 
-            hrp.CFrame = doorPart.CFrame * CFrame.new(0, 3, 3)
-            task.wait(0.3)
+        ToggleButton.Text = t.name .. " (" .. i .. "/" .. #targets .. ")"
+        print("Mencoba: " .. t.name .. " | type: " .. t.type)
 
-            -- Tekan F
-            for _ = 1, 5 do
+        if t.type == "portal" then
+            -- Teleport tepat ke Root portal
+            hrp.CFrame = CFrame.new(t.pos + Vector3.new(0, 4, 0))
+            task.wait(0.5)
+
+            -- Invoke RF
+            pcall(function()
+                t.rf:InvokeServer()
+            end)
+            task.wait(3) -- tunggu loading stage
+
+            -- Cek musuh
+            if HasEnemy() then
+                print("MUSUH DITEMUKAN di " .. t.name)
+                break
+            end
+
+        elseif t.type == "door" then
+            -- Teleport ke depan pintu
+            hrp.CFrame = CFrame.new(t.pos + Vector3.new(0, 4, 3))
+            task.wait(0.5)
+
+            -- Tekan F berkali-kali
+            for _ = 1, 8 do
+                if not _G.AutoDungeon then break end
                 VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
                 task.wait(0.05)
                 VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
                 task.wait(0.2)
             end
-
             task.wait(2)
+
             if HasEnemy() then
-                ToggleButton.Text = "MUSUH DITEMUKAN!"
+                print("MUSUH DITEMUKAN lewat door F")
                 break
             end
         end
@@ -227,12 +216,12 @@ local function DoFindEnemy()
     noEnemyTimer = tick()
     isBusy = false
 
-    if _G.AutoDungeon then
+    if _G.AutoDungeon and ScreenGui.Parent then
         ToggleButton.Text = "ULTIMATE AFK: ON"
     end
 end
 
--- Loop Utama
+-- LOOP UTAMA
 RS.Heartbeat:Connect(function()
     if not _G.AutoDungeon or not ScreenGui.Parent then return end
     if isBusy then return end
@@ -241,13 +230,13 @@ RS.Heartbeat:Connect(function()
 
     pcall(function()
         local char = Player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local humanoid = char and char:FindFirstChild("Humanoid")
-        if not hrp or not humanoid or humanoid.Health <= 0 then return end
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        local hum  = char and char:FindFirstChild("Humanoid")
+        if not hrp or not hum or hum.Health <= 0 then return end
 
-        -- 1. AUTO SKILL
+        -- 1. AUTO SKILL Q E R
         if tick() - lastSkillTime >= 3 then
-            for _, key in pairs({"Q", "E", "R"}) do
+            for _, key in ipairs({"Q", "E", "R"}) do
                 VIM:SendKeyEvent(true, key, false, game)
                 task.wait(0.02)
                 VIM:SendKeyEvent(false, key, false, game)
@@ -256,33 +245,30 @@ RS.Heartbeat:Connect(function()
         end
 
         -- 2. ADA MUSUH → SERANG
-        local targetEnemy = GetEnemy()
-        if targetEnemy then
+        local enemy = GetEnemy()
+        if enemy then
             noEnemyTimer = tick()
-            hrp.Velocity = Vector3.new(0,0,0)
-            hrp.CFrame = targetEnemy.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-            targetEnemy.Size = Vector3.new(40, 40, 40)
-            targetEnemy.CanCollide = false
+            hrp.Velocity    = Vector3.new(0, 0, 0)
+            hrp.CFrame      = enemy.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+            enemy.Size      = Vector3.new(40, 40, 40)
+            enemy.CanCollide = false
             game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
             return
         end
 
         -- 3. CEK CHEST
-        local chest = nil
         for _, v in ipairs(workspace:GetChildren()) do
             if v.Name:match("Chest") or v.Name == "TreasureChests" then
-                chest = v:FindFirstChild("Root") or v:FindFirstChildWhichIsA("BasePart")
-                if chest then break end
+                local chest = v:FindFirstChild("Root") or v:FindFirstChildWhichIsA("BasePart")
+                if chest then
+                    hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                    game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
+                    return
+                end
             end
         end
 
-        if chest then
-            hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-            game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
-            return
-        end
-
-        -- 4. TIDAK ADA MUSUH & TIDAK ADA CHEST → CARI PORTAL
+        -- 4. TIDAK ADA MUSUH → CARI PORTAL/DOOR
         if tick() - noEnemyTimer >= 5 and tick() - lastTeleportTime >= 5 then
             task.spawn(DoFindEnemy)
         end
