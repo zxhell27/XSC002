@@ -1,128 +1,88 @@
--- Iron Soul: Beta Exploit Script
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local ToggleButton = Instance.new("TextButton")
+local UICorner = Instance.new("UICorner")
 
--- // Services // --
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+-- UI Setup
+ScreenGui.Parent = game.CoreGui
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Position = UDim2.new(0.5, -75, 0.4, -25)
+MainFrame.Size = UDim2.new(0, 150, 0, 50)
+MainFrame.Active = true
+MainFrame.Draggable = true
 
--- // Variables // --
-local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+ToggleButton.Parent = MainFrame
+ToggleButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+ToggleButton.Size = UDim2.new(1, 0, 1, 0)
+ToggleButton.Text = "BIG HITBOX: OFF"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.TextSize = 14
+UICorner.Parent = MainFrame
 
-local isFlying = false
-local flySpeed = 50
-local auraRadius = 15
+-- Variabel Kontrol
+_G.AutoAttack = false
+local Player = game.Players.LocalPlayer
+local RS = game:GetService("RunService")
 
--- // Functions // --
-
--- Fly Mode
-function Fly()
-    if isFlying then
-        isFlying = false
-        Humanoid.PlatformStand = false
-        print("Fly mode disabled.")
-    else
-        isFlying = true
-        Humanoid.PlatformStand = true
-        print("Fly mode enabled.")
-        
-        local bodyGyro = Instance.new("BodyGyro")
-        bodyGyro.Parent = RootPart
-        bodyGyro.MaxTorque = Vector3.new(99999, 99999, 99999)
-        bodyGyro.P = 5000
-        
-        local bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.Parent = RootPart
-        bodyVelocity.MaxForce = Vector3.new(99999, 99999, 99999)
-        
-        RunService.Stepped:Connect(function()
-            if not isFlying then
-                bodyGyro:Destroy()
-                bodyVelocity:Destroy()
-                return
-            end
-            
-            bodyGyro.CFrame = RootPart.CFrame
-            
-            local direction = Vector3.new(0,0,0)
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                direction = direction + RootPart.CFrame.LookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                direction = direction - RootPart.CFrame.LookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                direction = direction - RootPart.CFrame.RightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                direction = direction + RootPart.CFrame.RightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                direction = direction + Vector3.new(0,1,0)
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                direction = direction - Vector3.new(0,1,0)
-            end
-
-            bodyVelocity.Velocity = direction.Unit * flySpeed
-        end)
-    end
-end
-
--- Aura Kill
-function AuraKill()
-    for i, v in pairs(workspace:GetChildren()) do
-        if v:IsA("Model") and v ~= Character and v:FindFirstChild("Humanoid") then
-            local distance = (RootPart.Position - v:GetPrimaryPartCFrame().Position).Magnitude
-            if distance <= auraRadius then
-                v.Humanoid.Health = 0
+-- Fungsi Memperbesar HITBOX Senjata secara Manual
+local function ExpandWeaponHitbox()
+    pcall(function()
+        local weapon = workspace:FindFirstChild("Lutung055") and workspace.Lutung055:FindFirstChild("Weapon")
+        if weapon then
+            -- Cari semua Part di dalam senjata untuk diperbesar hitboxnya
+            for _, part in pairs(weapon:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Size = Vector3.new(20, 20, 20) -- Ukuran hitbox raksasa (20x20x20 studs)
+                    part.Transparency = 0.8 -- Transparan agar tidak menutupi layar (ubah ke 1 untuk invisible)
+                    part.CanCollide = false -- Agar tidak nabrak objek lain
+                    part.Massless = true
+                end
             end
         end
-    end
+    end)
 end
 
--- Auto Farm (Basic - Implement game-specific farming logic)
-function AutoFarm()
-    -- This is a placeholder.  You will need to adapt this to the specific game's mechanics.
-    -- Example: Detect nearby enemies, move to them, and attack.
-
-    while true do
-        wait(1) -- Adjust the wait time as needed
-        AuraKill() --  Call Aura Kill to eliminate nearby entities
-
-        -- Example for moving to the nearest enemy.  Requires game-specific enemy detection.
-        -- local nearestEnemy = FindNearestEnemy() -- Placeholder function
-        -- if nearestEnemy then
-        --    Character:MoveTo(nearestEnemy.Position)
-        --    -- Attack the enemy (game-specific)
-        -- end
-    end
-end
-
---// Mobile Support (Simple Toggle with Button) //--
-local mobileButton = Instance.new("TextButton")
-mobileButton.Size = UDim2.new(0, 100, 0, 30)
-mobileButton.Position = UDim2.new(0, 10, 0, 10)
-mobileButton.Text = "Toggle Fly"
-mobileButton.BackgroundTransparency = 0.5
-mobileButton.Parent = LocalPlayer.PlayerGui
-
-mobileButton.MouseButton1Click:Connect(Fly)
-
--- // Keybinds // --
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if gameProcessedEvent then return end
-
-    if input.KeyCode == Enum.KeyCode.F then
-        Fly()
-    elseif input.KeyCode == Enum.KeyCode.K then
-        AuraKill()
-    elseif input.KeyCode == Enum.KeyCode.J then
-        AutoFarm()
+-- Fungsi Toggle
+ToggleButton.MouseButton1Click:Connect(function()
+    _G.AutoAttack = not _G.AutoAttack
+    if _G.AutoAttack then
+        ToggleButton.Text = "BIG HITBOX: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+        ExpandWeaponHitbox()
+    else
+        ToggleButton.Text = "BIG HITBOX: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
     end
 end)
 
--- // Initialization // --
-print("Iron Soul: Beta - Loaded")
+-- Loop Utama (Speed + God Position)
+RS.Heartbeat:Connect(function()
+    if _G.AutoAttack then
+        pcall(function()
+            local character = Player.Character
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if rootPart then
+                -- 1. Pindahkan Musuh ke Area Hitbox (Sedikit di bawah & depan)
+                if workspace:FindFirstChild("EnemyNpc") then
+                    for _, enemy in pairs(workspace.EnemyNpc:GetChildren()) do
+                        local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
+                        local enemyHum = enemy:FindFirstChild("Humanoid")
+                        
+                        if enemyHRP and enemyHum and enemyHum.Health > 0 then
+                            -- Musuh ditaruh di titik di mana hitbox 20x20 Anda pasti kena
+                            enemyHRP.CFrame = rootPart.CFrame * CFrame.new(0, -2, -8)
+                            enemyHRP.Velocity = Vector3.new(0, 0, 0)
+                        end
+                    end
+                end
+                
+                -- 2. Spam Serangan
+                local remote = game:GetService("ReplicatedStorage").Remotes.PlayerActionRE
+                remote:FireServer("SkillAction", "BaseAttack", 1)
+            end
+        end)
+    end
+end)
