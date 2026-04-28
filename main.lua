@@ -5,7 +5,7 @@ local CloseButton = Instance.new("TextButton")
 local UICorner = Instance.new("UICorner")
 
 -- UI Setup
-ScreenGui.Name = "IronSoul_V4_AntiStuck"
+ScreenGui.Name = "IronSoul_V5_SmartStuck"
 ScreenGui.Parent = game.CoreGui
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -17,7 +17,7 @@ MainFrame.Draggable = true
 ToggleButton.Parent = MainFrame
 ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.Text = "ANTISTUCK AFK: OFF"
+ToggleButton.Text = "SMART AFK: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.TextSize = 12
@@ -39,24 +39,29 @@ local GuiService = game:GetService("GuiService")
 local lastSkillTime = 0
 local noEnemyTimer = tick()
 local portalBlacklist = {}
-local lastPos = Vector3.new(0,0,0)
-local stuckTimer = 0
 
--- Fungsi Reset
+-- Variabel Anti-Stuck (10 studs / 8 detik)
+local checkPos = Vector3.new(0,0,0)
+local lastCheckTime = tick()
+
 local function ResetMemori()
     portalBlacklist = {}
-    stuckTimer = 0
-    print("Game Baru: Memori Direset.")
+    lastCheckTime = tick()
+    print("Memori Direset untuk Game Baru.")
 end
 
 local function SetToggle(state)
     _G.AutoDungeon = state
     if _G.AutoDungeon then
-        ToggleButton.Text = "ANTISTUCK AFK: ON"
+        ToggleButton.Text = "SMART AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
         noEnemyTimer = tick()
+        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+            checkPos = Player.Character.HumanoidRootPart.Position
+            lastCheckTime = tick()
+        end
     else
-        ToggleButton.Text = "ANTISTUCK AFK: OFF"
+        ToggleButton.Text = "SMART AFK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     end
 end
@@ -94,7 +99,7 @@ RS.Heartbeat:Connect(function()
             local hum = char and char:FindFirstChild("Humanoid")
             if not hrp or not hum then return end
 
-            -- 1. AUTO SKILL
+            -- 1. AUTO SKILL QER
             if tick() - lastSkillTime >= 3 then
                 for _, k in pairs({"Q", "E", "R"}) do
                     VIM:SendKeyEvent(true, k, false, game)
@@ -117,7 +122,7 @@ RS.Heartbeat:Connect(function()
 
             if target then
                 noEnemyTimer = tick()
-                stuckTimer = 0
+                lastCheckTime = tick() -- Reset timer stuck saat bertarung
                 hrp.Velocity = Vector3.new(0,0,0)
                 hrp.CFrame = target.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                 target.Size = Vector3.new(40, 40, 40)
@@ -135,8 +140,9 @@ RS.Heartbeat:Connect(function()
                 if chest then
                     hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                     game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
+                    lastCheckTime = tick() -- Reset timer stuck saat ambil peti
                 elseif tick() - noEnemyTimer >= 5 then
-                    -- 4. LOGIKA PORTAL DENGAN ANTI-STUCK
+                    -- 4. LOGIKA PORTAL
                     local closestPortal = nil
                     local minHealthDist = math.huge
                     
@@ -154,23 +160,23 @@ RS.Heartbeat:Connect(function()
                     end
 
                     if closestPortal then
-                        -- Cek apakah karakter sangkut (posisi tidak berubah)
-                        if (hrp.Position - lastPos).Magnitude < 1 then
-                            stuckTimer = stuckTimer + 1
-                        else
-                            stuckTimer = 0
+                        -- LOGIKA ANTI-STUCK: 10 studs dalam 8 detik
+                        if tick() - lastCheckTime >= 8 then
+                            local movedDist = (hrp.Position - checkPos).Magnitude
+                            if movedDist < 10 then
+                                -- Karakter SANGKUT: Force Teleport ke portal
+                                hrp.CFrame = closestPortal.CFrame * CFrame.new(0, 2, 0)
+                                print("Karakter Sangkut! Melakukan Force Teleport...")
+                            end
+                            -- Update posisi pengecekan berikutnya
+                            checkPos = hrp.Position
+                            lastCheckTime = tick()
                         end
-                        lastPos = hrp.Position
 
-                        -- Jika sangkut lebih dari 3 detik (30 frame heartbeat approx), TP langsung
-                        if stuckTimer > 180 then 
-                            hrp.CFrame = closestPortal.CFrame * CFrame.new(0, 2, 0)
-                            stuckTimer = 0
-                        else
-                            hum:MoveTo(closestPortal.Position)
-                        end
+                        -- Perintah jalan ke portal
+                        hum:MoveTo(closestPortal.Position)
                         
-                        -- Interaksi Portal
+                        -- Interaksi jika sudah dekat
                         if (closestPortal.Position - hrp.Position).Magnitude < 15 then
                             local rf = closestPortal:FindFirstChild("RF")
                             if rf then 
