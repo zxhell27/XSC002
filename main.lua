@@ -5,7 +5,7 @@ local CloseButton = Instance.new("TextButton")
 local UICorner = Instance.new("UICorner")
 
 -- UI Setup
-ScreenGui.Name = "IronSoul_V3_Blacklist"
+ScreenGui.Name = "IronSoul_V4_AntiStuck"
 ScreenGui.Parent = game.CoreGui
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -17,7 +17,7 @@ MainFrame.Draggable = true
 ToggleButton.Parent = MainFrame
 ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
 ToggleButton.Size = UDim2.new(1, 0, 1, 0)
-ToggleButton.Text = "BLACK_MEM AFK: OFF"
+ToggleButton.Text = "ANTISTUCK AFK: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.TextSize = 12
@@ -29,7 +29,7 @@ CloseButton.Position = UDim2.new(1, -20, 0, 0)
 CloseButton.Size = UDim2.new(0, 20, 0, 20)
 CloseButton.Text = "X"
 
--- Variabel Kontrol & Memori
+-- Variabel Kontrol
 _G.AutoDungeon = false
 local Player = game.Players.LocalPlayer
 local RS = game:GetService("RunService")
@@ -38,23 +38,25 @@ local GuiService = game:GetService("GuiService")
 
 local lastSkillTime = 0
 local noEnemyTimer = tick()
-local portalBlacklist = {} -- Memori portal yang sudah pernah dimasuki
+local portalBlacklist = {}
+local lastPos = Vector3.new(0,0,0)
+local stuckTimer = 0
 
--- Fungsi Reset Memori (Panggil saat mulai game baru)
+-- Fungsi Reset
 local function ResetMemori()
     portalBlacklist = {}
-    print("Memori Portal Direset.")
+    stuckTimer = 0
+    print("Game Baru: Memori Direset.")
 end
 
--- Fungsi Toggle
 local function SetToggle(state)
     _G.AutoDungeon = state
     if _G.AutoDungeon then
-        ToggleButton.Text = "BLACK_MEM AFK: ON"
+        ToggleButton.Text = "ANTISTUCK AFK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
         noEnemyTimer = tick()
     else
-        ToggleButton.Text = "BLACK_MEM AFK: OFF"
+        ToggleButton.Text = "ANTISTUCK AFK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     end
 end
@@ -75,11 +77,11 @@ end)
 -- Loop Utama
 RS.Heartbeat:Connect(function()
     if _G.AutoDungeon and ScreenGui.Parent then
-        -- CEK RESULT (Play Again)
+        -- AUTO PLAY AGAIN
         pcall(function()
             local resGui = Player.PlayerGui:FindFirstChild("ResultGui")
             if resGui and resGui.ScreenSettlement.BtnGroup.PlayAgainBtn.Visible then
-                ResetMemori() -- Reset blacklist saat mulai ulang
+                ResetMemori()
                 GuiService.SelectedObject = resGui.ScreenSettlement.BtnGroup.PlayAgainBtn
                 VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
                 VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
@@ -101,7 +103,7 @@ RS.Heartbeat:Connect(function()
                 lastSkillTime = tick()
             end
 
-            -- 2. DETEKSI MUSUH
+            -- 2. TARGETING MUSUH
             local target = nil
             local enemyFolder = workspace:FindFirstChild("EnemyNpc")
             if enemyFolder then
@@ -115,6 +117,7 @@ RS.Heartbeat:Connect(function()
 
             if target then
                 noEnemyTimer = tick()
+                stuckTimer = 0
                 hrp.Velocity = Vector3.new(0,0,0)
                 hrp.CFrame = target.CFrame * CFrame.new(0, 12, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                 target.Size = Vector3.new(40, 40, 40)
@@ -133,13 +136,12 @@ RS.Heartbeat:Connect(function()
                     hrp.CFrame = chest.CFrame * CFrame.new(0, 6, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                     game:GetService("ReplicatedStorage").Remotes.PlayerActionRE:FireServer("SkillAction", "BaseAttack", 1)
                 elseif tick() - noEnemyTimer >= 5 then
-                    -- 4. LOGIKA PORTAL TERDEKAT DENGAN BLACKLIST
+                    -- 4. LOGIKA PORTAL DENGAN ANTI-STUCK
                     local closestPortal = nil
                     local minHealthDist = math.huge
                     
                     for _, v in pairs(workspace:GetDescendants()) do
                         if v.Name == "Root" and v.Parent.Name == "Portal" then
-                            -- Cek apakah portal ini sudah pernah dimasuki (Blacklist)
                             local portalID = tostring(v.Position)
                             if not portalBlacklist[portalID] then
                                 local dist = (v.Position - hrp.Position).Magnitude
@@ -152,28 +154,30 @@ RS.Heartbeat:Connect(function()
                     end
 
                     if closestPortal then
-                        -- Karakter BERLARI ke portal (bukan instan teleport agar server sinkron)
-                        hum:MoveTo(closestPortal.Position)
+                        -- Cek apakah karakter sangkut (posisi tidak berubah)
+                        if (hrp.Position - lastPos).Magnitude < 1 then
+                            stuckTimer = stuckTimer + 1
+                        else
+                            stuckTimer = 0
+                        end
+                        lastPos = hrp.Position
+
+                        -- Jika sangkut lebih dari 3 detik (30 frame heartbeat approx), TP langsung
+                        if stuckTimer > 180 then 
+                            hrp.CFrame = closestPortal.CFrame * CFrame.new(0, 2, 0)
+                            stuckTimer = 0
+                        else
+                            hum:MoveTo(closestPortal.Position)
+                        end
                         
-                        -- Jika sudah dekat portal, baru invoke
+                        -- Interaksi Portal
                         if (closestPortal.Position - hrp.Position).Magnitude < 15 then
                             local rf = closestPortal:FindFirstChild("RF")
                             if rf then 
-                                -- Simpan ke memori blacklist
                                 portalBlacklist[tostring(closestPortal.Position)] = true
                                 rf:InvokeServer()
                                 task.wait(1.5)
                                 noEnemyTimer = tick()
-                            end
-                        end
-                    else
-                        -- Cadangan Pintu
-                        for _, d in pairs(workspace:GetDescendants()) do
-                            if d.Name == "LocalRoundDoor" then
-                                hrp.CFrame = d.CFrame * CFrame.new(0, 0, 3)
-                                VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-                                VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-                                break
                             end
                         end
                     end
