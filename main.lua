@@ -7,19 +7,18 @@ local isRunning = false
 local loopConnection = nil
 
 -- ==========================================
--- 1. TAMPILAN UI (GUI)
+-- 1. TAMPILAN UI (GUI) - Tetap Sama
 -- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RangeFarmUI"
+ScreenGui.Name = "GunFarmUI"
 ScreenGui.ResetOnSpawn = false
-
-local success = pcall(function() ScreenGui.Parent = CoreGui end)
-if not success then ScreenGui.Parent = player:WaitForChild("PlayerGui") end
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = player:WaitForChild("PlayerGui") end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 180, 0, 90)
 MainFrame.Position = UDim2.new(0.5, -90, 0.2, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 MainFrame.Active = true
 MainFrame.Draggable = true 
 MainFrame.Parent = ScreenGui
@@ -31,8 +30,8 @@ UICorner.Parent = MainFrame
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0.9, 0, 0.7, 0)
 ToggleBtn.Position = UDim2.new(0.05, 0, 0.15, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
-ToggleBtn.Text = "START RANGE"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+ToggleBtn.Text = "START GUN"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.Font = Enum.Font.GothamBold
 ToggleBtn.TextSize = 16
@@ -42,9 +41,9 @@ local BtnCorner = Instance.new("UICorner")
 BtnCorner.Parent = ToggleBtn
 
 -- ==========================================
--- 2. LOGIKA DISTANCE BRING (UNTUK MENEMBAK)
+-- 2. LOGIKA GUN FARM (DIDEPAN, SEJAJAR)
 -- ==========================================
-local function rangeBring()
+local function gunBring()
     local character = player.Character
     if not character then return end
     local hrp = character:FindFirstChild("HumanoidRootPart")
@@ -54,33 +53,40 @@ local function rangeBring()
     if not enemiesFolder then return end
 
     local enemies = enemiesFolder:GetChildren()
-    local targetIndex = 3 -- Musuh acuan ke-3
+    local targetIndex = 3 
     local centerEnemy = enemies[targetIndex]
 
     if centerEnemy and centerEnemy:FindFirstChild("HumanoidRootPart") then
-        local gatherPos = centerEnemy.HumanoidRootPart.Position
+        local enemyHrp = centerEnemy.HumanoidRootPart
+        
+        -- Ambil Posisi dan Arah Hadap Musuh Acuan
+        local enemyCFrame = enemyHrp.CFrame
+        local gatherPos = enemyCFrame.Position
 
-        -- 1. Kumpulkan semua musuh di satu titik
+        -- 1. Kumpulkan semua musuh di SATU TITIK & ARAH YANG SAMA
         for _, enemy in ipairs(enemies) do
             local eHrp = enemy:FindFirstChild("HumanoidRootPart")
             if eHrp then
-                eHrp.CFrame = CFrame.new(gatherPos)
+                -- Semua musuh ditumpuk di posisi enemy ke-3 dan menghadap arah yang sama
+                eHrp.CFrame = enemyCFrame 
             end
         end
 
-        -- 2. Tentukan jarak tembak (Jarak aman dari musuh)
-        -- Ubah angka 15 jika ingin lebih jauh atau lebih dekat
+        -- 2. Tentukan Posisi Kamu (Di Depan Musuh)
+        -- Ubah angka 15 untuk mengatur jarak tembak (horizontal)
         local jarakTembak = 15 
         
-        -- Kita buat posisi kamu berada di depan titik kumpul (menggunakan offset sumbu Z atau X)
-        -- Di sini kita pakai CFrame.lookAt agar kamu selalu menghadap musuh
-        local myNewPos = gatherPos + Vector3.new(0, 2, jarakTembak) -- Sedikit lebih tinggi (2) agar peluru tidak kena lantai
+        -- Kita hitung posisi tepat di depan musuh
+        -- enemyCFrame.LookVector adalah arah depan musuh
+        -- Kita kalikan dengan jarak, lalu tambahkan ke posisi musuh
+        local positionInFront = gatherPos + (enemyCFrame.LookVector * jarakTembak)
         
-        hrp.CFrame = CFrame.lookAt(myNewPos, gatherPos)
+        -- Buat CFrame baru di posisi depan tersebut, dan paksa menghadap kembali ke musuh
+        hrp.CFrame = CFrame.lookAt(positionInFront, gatherPos)
         
-        -- Kunci posisi agar tidak terdorong saat menembak
-        hrp.Velocity = Vector3.new(0, 0, 0)
-        hrp.Anchored = true 
+        -- 3. Kunci Karakter (Anchored) agar tidak jatuh atau didorong physics
+        hrp.Anchored = true
+        hrp.Velocity = Vector3.new(0, 0, 0) 
     end
 end
 
@@ -91,12 +97,12 @@ ToggleBtn.MouseButton1Click:Connect(function()
     isRunning = not isRunning
     
     if isRunning then
-        ToggleBtn.Text = "RANGE ACTIVE"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(70, 180, 70)
-        loopConnection = RunService.Heartbeat:Connect(rangeBring)
+        ToggleBtn.Text = "GUN ACTIVE"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        loopConnection = RunService.Heartbeat:Connect(gunBring)
     else
-        ToggleBtn.Text = "START RANGE"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+        ToggleBtn.Text = "START GUN"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
         if loopConnection then
             loopConnection:Disconnect()
             loopConnection = nil
