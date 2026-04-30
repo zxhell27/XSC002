@@ -6,14 +6,11 @@ local player = Players.LocalPlayer
 local isRunning = false
 local loopConnection = nil
 
--- Remote dari TurtleSpy
-local weaponRemote = workspace:FindFirstChild("Lutung055") and workspace.Lutung055:FindFirstChild("Weapon") and workspace.Lutung055.Weapon:FindFirstChild("revent")
-
 -- ==========================================
--- UI SETUP
+-- 1. UI SETUP
 -- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "TrainFollowUI"
+ScreenGui.Name = "AutoKillUI"
 ScreenGui.ResetOnSpawn = false
 pcall(function() ScreenGui.Parent = CoreGui end)
 if not ScreenGui.Parent then ScreenGui.Parent = player:WaitForChild("PlayerGui") end
@@ -21,7 +18,7 @@ if not ScreenGui.Parent then ScreenGui.Parent = player:WaitForChild("PlayerGui")
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 180, 0, 90)
 MainFrame.Position = UDim2.new(0.5, -90, 0.4, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
 MainFrame.Active = true
 MainFrame.Draggable = true 
 MainFrame.Parent = ScreenGui
@@ -29,8 +26,8 @@ MainFrame.Parent = ScreenGui
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0.9, 0, 0.7, 0)
 ToggleBtn.Position = UDim2.new(0.05, 0, 0.15, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-ToggleBtn.Text = "FOLLOW TRAIN"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
+ToggleBtn.Text = "AUTO KILL MODE"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.Font = Enum.Font.GothamBold
 ToggleBtn.TextSize = 14
@@ -40,63 +37,64 @@ Instance.new("UICorner", MainFrame)
 Instance.new("UICorner", ToggleBtn)
 
 -- ==========================================
--- LOGIKA UTAMA (RELATIVE MOVEMENT)
+-- 2. LOGIKA AUTO KILL (PULL TO BLOCK1)
 -- ==========================================
-local function moveWithTrain()
+local lockedPos = nil
+
+local function autoKillFarm()
     local character = player.Character
     local hrp = character and character:FindFirstChild("HumanoidRootPart")
     
-    local trackTarget = workspace:FindFirstChild("Block1") and workspace.Block1:FindFirstChild("Track")
+    -- Path: workspace.Block1.Track
+    local block1 = workspace:FindFirstChild("Block1")
+    local trackTarget = block1 and block1:FindFirstChild("Track")
     local enemyFolder = workspace:FindFirstChild("Enemy")
 
     if not hrp or not trackTarget then return end
 
-    -- JANGAN gunakan Anchored agar bisa mengikuti pergerakan physics kereta
-    hrp.Anchored = false 
+    -- 1. Kunci posisi kamu di belakang kereta agar aman (Hanya sekali set)
+    if not lockedPos then
+        -- Kamu diam di koordinat rel yang sudah dilewati (150 stud di belakang)
+        lockedPos = trackTarget.CFrame * CFrame.new(0, 10, 150)
+    end
     
-    -- Paksa posisi karakter tepat di atas Track (mengikuti pergerakan Track setiap frame)
-    hrp.CFrame = trackTarget.CFrame * CFrame.new(0, 3, 0)
-    
-    -- Matikan momentum agar tidak terpental karena kecepatan kereta
-    hrp.Velocity = Vector3.new(0, 0, 0)
-    hrp.RotVelocity = Vector3.new(0, 0, 0)
+    hrp.Anchored = true
+    hrp.CFrame = lockedPos
 
+    -- 2. Tarik paksa semua musuh ke DALAM Block1 agar mati otomatis
     if enemyFolder then
         local enemies = enemyFolder:GetChildren()
-        if #enemies > 0 then
-            local targetEnemy = enemies[3] or enemies[1]
-            
-            for _, enemy in ipairs(enemies) do
-                local eHrp = enemy:FindFirstChild("HumanoidRootPart")
-                if eHrp then
-                    -- Tarik musuh agar SELALU di depan Track (ikut bergerak maju bersama kereta)
-                    eHrp.CFrame = trackTarget.CFrame * CFrame.new(0, 0, -10)
-                    eHrp.Velocity = Vector3.new(0, 0, 0)
-                end
-            end
-
-            -- Auto Hit Remote
-            if weaponRemote and targetEnemy:FindFirstChild("HumanoidRootPart") then
-                weaponRemote:FireServer("bullet", "Bu1", CFrame.new(hrp.Position, targetEnemy.HumanoidRootPart.Position))
+        for _, enemy in ipairs(enemies) do
+            local eHrp = enemy:FindFirstChild("HumanoidRootPart")
+            if eHrp then
+                -- Menaruh musuh tepat di posisi Block1 (Kill Zone)
+                -- Kita beri sedikit offset agar benar-benar masuk ke tengah block
+                eHrp.CFrame = trackTarget.CFrame * CFrame.new(0, 0, 0)
+                
+                -- Opsional: Matikan velocity agar mereka tidak terdorong keluar dari block
+                eHrp.Velocity = Vector3.new(0, 0, 0)
             end
         end
     end
 end
 
 -- ==========================================
--- TOGGLE HANDLER
+-- 3. TOGGLE HANDLER
 -- ==========================================
 ToggleBtn.MouseButton1Click:Connect(function()
     isRunning = not isRunning
     
     if isRunning then
-        ToggleBtn.Text = "FOLLOWING..."
+        lockedPos = nil -- Reset posisi agar mengambil koordinat baru saat aktif
+        ToggleBtn.Text = "KILLER ACTIVE"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-        -- Menggunakan RenderStepped adalah cara tercepat agar tidak ketinggalan kereta
-        loopConnection = RunService.RenderStepped:Connect(moveWithTrain)
+        loopConnection = RunService.Heartbeat:Connect(autoKillFarm)
     else
-        ToggleBtn.Text = "FOLLOW TRAIN"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+        ToggleBtn.Text = "AUTO KILL MODE"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
         if loopConnection then loopConnection:Disconnect() end
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            player.Character.HumanoidRootPart.Anchored = false
+        end
     end
 end)
