@@ -1,90 +1,98 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Enemy Gatherer V3 | Arceus X",
-   LoadingTitle = "Menjalankan Script...",
+   Name = "OVERPOWERED GATHERER | Arceus X",
+   LoadingTitle = "Initiating God Mode...",
    LoadingSubtitle = "by Gemini",
    ConfigurationSaving = { Enabled = false }
 })
 
-local Tab = Window:CreateTab("Main", 4483362458)
+local Tab = Window:CreateTab("Chaos", 4483362458)
 
-local gatheringActive = false
+local _G = _G or {}
+_G.GodGather = false
+local connection = nil
 
--- Fungsi Utama Gather
-local function gatherEnemies()
-    local enemiesFolder = workspace:FindFirstChild("Enemy")
-    if not enemiesFolder then return end
-    
-    local allEnemies = enemiesFolder:GetChildren()
-    if #allEnemies == 0 then return end
+-- FUNGSI GILA: Mengunci CFrame di tingkat RenderStepped
+local function startBlackHole()
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not _G.GodGather then 
+            if connection then connection:Disconnect() end
+            return 
+        end
 
-    -- Target Index 33 atau yang terakhir
-    local targetEnemy = allEnemies[33] or allEnemies[#allEnemies] 
-    
-    if targetEnemy and targetEnemy:FindFirstChild("HumanoidRootPart") then
-        local gatherPosition = targetEnemy.HumanoidRootPart.Position
-
-        for _, enemy in ipairs(allEnemies) do
-            local enemyHrp = enemy:FindFirstChild("HumanoidRootPart")
-            if enemyHrp then
-                -- 1. Pindahkan Posisi
-                enemyHrp.CFrame = CFrame.new(gatherPosition)
+        local folder = workspace:FindFirstChild("Enemy")
+        if not folder then return end
+        
+        local enemies = folder:GetChildren()
+        -- Gunakan index 33 atau musuh terjauh sebagai gravitasi pusat
+        local center = enemies[33] or enemies[#enemies]
+        
+        if center and center:FindFirstChild("HumanoidRootPart") then
+            local targetPos = center.HumanoidRootPart.CFrame
+            
+            for _, enemy in ipairs(enemies) do
+                local hrp = enemy:FindFirstChild("HumanoidRootPart")
+                local hum = enemy:FindFirstChildOfClass("Humanoid")
                 
-                -- 2. Kunci Posisi (Agar tidak kembali ke awal)
-                enemyHrp.Anchored = true
-                
-                -- 3. Reset Kecepatan
-                enemyHrp.Velocity = Vector3.new(0, 0, 0)
+                if hrp and enemy ~= center then
+                    -- PAKSA POSISI (Ini akan menang melawan AI game manapun)
+                    hrp.CFrame = targetPos
+                    hrp.Velocity = Vector3.new(0,0,0)
+                    
+                    -- KREATIF: Matikan state berjalan agar AI-nya 'patah'
+                    if hum then
+                        hum:ChangeState(Enum.HumanoidStateType.Physics)
+                        hum.PlatformStand = true -- Musuh jadi lemas dan tidak bisa lari
+                    end
+                end
             end
         end
-    end
+    end)
 end
 
--- Fungsi Un-Anchor (Agar musuh bisa mati/bergerak lagi jika diinginkan)
-local function unanchorEnemies()
-    local enemiesFolder = workspace:FindFirstChild("Enemy")
-    if enemiesFolder then
-        for _, enemy in ipairs(enemiesFolder:GetChildren()) do
-            local enemyHrp = enemy:FindFirstChild("HumanoidRootPart")
-            if enemyHrp then
-                enemyHrp.Anchored = false
-            end
-        end
-    end
-end
-
--- Toggle Loop
 Tab:CreateToggle({
-   Name = "Auto Gather & Freeze Musuh",
+   Name = "ACTIVATE BLACK HOLE (Force Gather)",
    CurrentValue = false,
-   Flag = "GatherToggle",
+   Flag = "GodGather",
    Callback = function(Value)
-      gatheringActive = Value
-      if gatheringActive then
-         task.spawn(function()
-            while gatheringActive do
-               gatherEnemies()
-               task.wait(1) -- Siklus kumpul tiap 1 detik
-            end
-         end)
+      _G.GodGather = Value
+      if Value then
+         startBlackHole()
       else
-         unanchorEnemies() -- Lepaskan kunci jika toggle dimatikan
+         -- Reset musuh agar bisa bergerak lagi saat dimatikan
+         local folder = workspace:FindFirstChild("Enemy")
+         if folder then
+            for _, enemy in ipairs(folder:GetChildren()) do
+                local hum = enemy:FindFirstChildOfClass("Humanoid")
+                if hum then 
+                    hum.PlatformStand = false 
+                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                end
+            end
+         end
       end
    end,
 })
 
--- Button Teleport Tetap Ada
+-- Fitur Tambahan: Kill Aura Simulator (Opsional - Mengosongkan HP Musuh yang terkumpul)
 Tab:CreateButton({
-   Name = "Jump & Teleport ke CFrame",
+   Name = "Instant Snap (Set HP 0)",
    Callback = function()
-       local player = game.Players.LocalPlayer
-       local char = player.Character or player.CharacterAdded:Wait()
-       local hrp = char:WaitForChild("HumanoidRootPart")
-       local targetCFrame = CFrame.new(1.95877993, -5.97917175, 304.821838, -0.982867241, -0.0337362401, 0.181201249, -0.0397345014, 0.998772502, -0.029574357, -0.179981127, -0.0362676568, -0.983001173)
-       
+       for _, enemy in ipairs(workspace.Enemy:GetChildren()) do
+           local hum = enemy:FindFirstChildOfClass("Humanoid")
+           if hum then hum.Health = 0 end
+       end
+   end,
+})
+
+-- Teleport CFrame Original
+Tab:CreateButton({
+   Name = "Jump & Teleport",
+   Callback = function()
+       local hrp = game.Players.LocalPlayer.Character.HumanoidRootPart
        hrp.CFrame = hrp.CFrame * CFrame.new(0, 500, 0)
        task.wait(0.2)
-       hrp.CFrame = targetCFrame
+       hrp.CFrame = CFrame.new(1.95877993, -5.97917175, 304.821838, -0.982867241, -0.0337362401, 0.181201249, -0.0397345014, 0.998772502, -0.029574357, -0.179981127, -0.0362676568, -0.983001173)
    end,
 })
