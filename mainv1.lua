@@ -1,51 +1,79 @@
--- SKRIP AUTO-FARM TREASURE (TANPA UI - LANGSUNG JALAN)
-print("Skrip dimulai... Mencari Treasure di Workspace.")
+-- LocalScript dalam TextButton
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+local rs = game:GetService("RunService")
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local remote = replicatedStorage.Remotes.Chunks.damageBlock
 
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local Player = game.Players.LocalPlayer
+-- Konfigurasi
+local isActive = false
+local currentTarget = nil
+local BUTTON_ON_COLOR = Color3.fromRGB(0, 255, 100)
+local BUTTON_OFF_COLOR = Color3.fromRGB(255, 50, 50)
 
--- Fungsi utama farming
-local function doFarm()
-    while true do
-        local character = Player.Character or Player.CharacterAdded:Wait()
-        local rootPart = character:WaitForChild("HumanoidRootPart")
-        local treasureFolder = workspace:FindFirstChild("Treasure")
-        
-        if treasureFolder then
-            local targets = treasureFolder:GetChildren()
-            
-            if #targets == 0 then
-                print("Menunggu treasure muncul...")
+local button = script.Parent
+
+-- Fungsi Mencari Target Terdekat dengan MaterialVariant
+local function findTarget()
+    local blocks = workspace.Blocks:GetChildren()
+    local closestDist = math.huge
+    local selected = nil
+
+    for _, block in ipairs(blocks) do
+        -- Memastikan objek memiliki properti MaterialVariant dan tidak kosong
+        local success, variant = pcall(function() return block.MaterialVariant end)
+        if success and variant ~= "" then
+            local dist = (player.Character.HumanoidRootPart.Position - block.Position).Magnitude
+            if dist < closestDist then
+                closestDist = dist
+                selected = block
             end
-
-            for _, item in pairs(targets) do
-                -- Mencari part tujuan
-                local targetPart = item:FindFirstChildWhichIsA("BasePart") or item
-                
-                if targetPart and targetPart:IsA("BasePart") then
-                    print("Teleport ke: " .. item.Name)
-                    
-                    -- Teleport ke lokasi
-                    rootPart.CFrame = targetPart.CFrame * CFrame.new(0, 2, 0)
-                    task.wait(0.5)
-                    
-                    -- Tahan tombol F
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-                    print("Menahan F selama 4 detik...")
-                    
-                    task.wait(4)
-                    
-                    -- Lepas tombol F
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-                    task.wait(0.5)
-                end
-            end
-        else
-            warn("Folder 'Treasure' tidak ditemukan di Workspace!")
         end
-        task.wait(2) -- Jeda sebelum scan ulang folder
     end
+    return selected
 end
 
--- Menjalankan skrip di background
-task.spawn(doFarm)
+-- Logika Utama Loop
+task.spawn(function()
+    while true do
+        if isActive then
+            if not currentTarget or not currentTarget.Parent then
+                currentTarget = findTarget()
+            end
+
+            if currentTarget then
+                -- 1. Hadapkan karakter ke target (Opsional tapi lebih aman dari Anticheat)
+                player.Character.HumanoidRootPart.CFrame = CFrame.new(player.Character.HumanoidRootPart.Position, currentTarget.Position)
+                
+                -- 2. Kirim sinyal Damage (Sesuai Remote Anda)
+                remote:FireServer(currentTarget)
+
+                -- 3. Simulasi 'Hold' (Jika server butuh durasi, kita loop remote ini)
+                -- Catatan: Jika server butuh mouse click asli, Anda memerlukan VirtualInputManager
+                -- Namun biasanya Remote cukup dipanggil berulang kali.
+            end
+        end
+        task.wait(0.1) -- Delay untuk stabilitas
+    end
+end)
+
+-- Deteksi Drop & Teleport Otomatis
+workspace.Drops.ChildAdded:Connect(function(child)
+    if isActive then
+        -- Tunggu sejenak agar part benar-benar muncul
+        task.wait(0.1)
+        if child:IsA("BasePart") then
+            -- Teleport part ke posisi pemain agar otomatis terambil
+            child.CFrame = player.Character.HumanoidRootPart.CFrame
+        end
+    end
+end)
+
+-- Toggle Button
+button.MouseButton1Click:Connect(function()
+    isActive = not isActive
+    button.Text = isActive and "AUTOFARM: ON" or "AUTOFARM: OFF"
+    button.BackgroundColor3 = isActive and BUTTON_ON_COLOR or BUTTON_OFF_COLOR
+    
+    if not isActive then currentTarget = nil end
+end)
