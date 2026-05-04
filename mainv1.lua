@@ -1,53 +1,78 @@
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.Lib:CreateWindow("Treasure Auto-Farm", "Arceus X")
-local Tab = Window:NewTab("Main")
-local Section = Tab:NewSection("Teleport & Hold F")
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local Player = game.Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Window = Rayfield:CreateWindow({
+   Name = "Treasure Auto-Farm",
+   LoadingTitle = "Arceus X Script",
+   LoadingSubtitle = "by Gemini",
+   ConfigurationSaving = {
+      Enabled = false
+   }
+})
+
+local Tab = Window:CreateTab("Main", nil) -- Title, Image
+local Section = Tab:CreateSection("Farm Settings")
 
 _G.AutoFarm = false
 
--- Fungsi Utama
 local function startFarming()
+    local VirtualInputManager = game:GetService("VirtualInputManager")
+    local Player = game.Players.LocalPlayer
+    
     while _G.AutoFarm do
-        local treasures = workspace:WaitForChild("Treasure"):GetChildren()
+        local character = Player.Character or Player.CharacterAdded:Wait()
+        local rootPart = character:WaitForChild("HumanoidRootPart")
+        local treasureFolder = workspace:FindFirstChild("Treasure")
         
-        for _, item in pairs(treasures) do
-            if not _G.AutoFarm then break end
+        if treasureFolder then
+            local items = treasureFolder:GetChildren()
             
-            -- Cek jika item memiliki Part untuk dituju
-            local targetPart = item:FindFirstChildWhichIsA("BasePart") or item
-            
-            if targetPart then
-                -- Teleport ke lokasi item (sedikit di atas agar tidak stuck)
-                RootPart.CFrame = targetPart.CFrame * CFrame.new(0, 2, 0)
-                task.wait(0.5)
+            for _, item in pairs(items) do
+                if not _G.AutoFarm then break end
                 
-                -- Simulasi tekan tombol F
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-                print("Holding F on: " .. item.Name)
+                -- Mencari part di dalam model treasure
+                local target = item:FindFirstChildWhichIsA("BasePart") or item
                 
-                -- Tunggu 4 detik sesuai permintaan
-                task.wait(4)
-                
-                -- Lepas tombol F
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-                task.wait(0.5)
+                if target and target:IsA("BasePart") then
+                    -- Teleport ke item
+                    rootPart.CFrame = target.CFrame * CFrame.new(0, 2, 0)
+                    task.wait(0.5)
+                    
+                    -- Tekan F
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                    
+                    -- Tahan selama 4 detik
+                    local startTime = tick()
+                    repeat 
+                        task.wait(0.1)
+                    until tick() - startTime >= 4 or not _G.AutoFarm
+                    
+                    -- Lepas F
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                    task.wait(0.5)
+                end
             end
+        else
+            Rayfield:Notify({
+               Title = "Error",
+               Content = "Folder 'Treasure' tidak ditemukan di Workspace!",
+               Duration = 5,
+               Image = 4483362458,
+            })
+            _G.AutoFarm = false
+            break
         end
-        task.wait(1) -- Jeda antar loop pencarian folder
+        task.wait(1)
     end
 end
 
--- Toggle UI
-Section:NewToggle("Auto Treasure", "Teleport and Hold F for 4s", function(state)
-    _G.AutoFarm = state
-    if state then
-        task.spawn(startFarming)
-    end
-end)
-
-Section:NewLabel("Dibuat untuk Workspace.Treasure")
+local Toggle = Tab:CreateToggle({
+   Name = "Auto Collect Treasure",
+   CurrentValue = false,
+   Flag = "ToggleFarm", 
+   Callback = function(Value)
+      _G.AutoFarm = Value
+      if Value then
+          task.spawn(startFarming)
+      end
+   end,
+})
