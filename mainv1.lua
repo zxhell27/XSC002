@@ -1,79 +1,80 @@
--- LocalScript dalam TextButton
 local player = game.Players.LocalPlayer
-local mouse = player:GetMouse()
-local rs = game:GetService("RunService")
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Pastikan path ReplicatedStorage benar
 local replicatedStorage = game:GetService("ReplicatedStorage")
-local remote = replicatedStorage.Remotes.Chunks.damageBlock
+-- Menggunakan WaitForChild agar tidak error 'Not Found'
+local remotesFolder = replicatedStorage:WaitForChild("Remotes", 5)
+local chunksFolder = remotesFolder and remotesFolder:WaitForChild("Chunks", 5)
+local damageRemote = chunksFolder and chunksFolder:WaitForChild("damageBlock", 5)
 
--- Konfigurasi
+local button = script.Parent -- Pastikan script ini ADA DI DALAM TextButton
 local isActive = false
-local currentTarget = nil
-local BUTTON_ON_COLOR = Color3.fromRGB(0, 255, 100)
-local BUTTON_OFF_COLOR = Color3.fromRGB(255, 50, 50)
 
-local button = script.Parent
-
--- Fungsi Mencari Target Terdekat dengan MaterialVariant
-local function findTarget()
-    local blocks = workspace.Blocks:GetChildren()
-    local closestDist = math.huge
-    local selected = nil
-
-    for _, block in ipairs(blocks) do
-        -- Memastikan objek memiliki properti MaterialVariant dan tidak kosong
-        local success, variant = pcall(function() return block.MaterialVariant end)
-        if success and variant ~= "" then
-            local dist = (player.Character.HumanoidRootPart.Position - block.Position).Magnitude
-            if dist < closestDist then
-                closestDist = dist
-                selected = block
-            end
-        end
-    end
-    return selected
+-- Cek apakah remote ditemukan
+if not damageRemote then
+    warn("CRITICAL: Remote damageBlock tidak ditemukan! Periksa path-nya.")
 end
 
--- Logika Utama Loop
+-- Fungsi mencari target (Filter MaterialVariant)
+local function getClosestBlock()
+    local blocksFolder = workspace:FindFirstChild("Blocks")
+    if not blocksFolder then return nil end
+    
+    local closest = nil
+    local shortestDist = math.huge
+    
+    for _, block in ipairs(blocksFolder:GetChildren()) do
+        -- Cek Properti MaterialVariant
+        local hasVariant = pcall(function() return block.MaterialVariant end)
+        if hasVariant and block.MaterialVariant ~= "" then
+            local dist = (rootPart.Position - block.Position).Magnitude
+            if dist < shortestDist then
+                shortestDist = dist
+                closest = block
+            end
+        end
+    end
+    return closest
+end
+
+-- Fungsi Loop Utama
 task.spawn(function()
-    while true do
-        if isActive then
-            if not currentTarget or not currentTarget.Parent then
-                currentTarget = findTarget()
-            end
-
-            if currentTarget then
-                -- 1. Hadapkan karakter ke target (Opsional tapi lebih aman dari Anticheat)
-                player.Character.HumanoidRootPart.CFrame = CFrame.new(player.Character.HumanoidRootPart.Position, currentTarget.Position)
+    while task.wait(0.2) do
+        if isActive and damageRemote then
+            local target = getClosestBlock()
+            if target then
+                -- Menghadap ke target
+                rootPart.CFrame = CFrame.new(rootPart.Position, Vector3.new(target.Position.X, rootPart.Position.Y, target.Position.Z))
                 
-                -- 2. Kirim sinyal Damage (Sesuai Remote Anda)
-                remote:FireServer(currentTarget)
-
-                -- 3. Simulasi 'Hold' (Jika server butuh durasi, kita loop remote ini)
-                -- Catatan: Jika server butuh mouse click asli, Anda memerlukan VirtualInputManager
-                -- Namun biasanya Remote cukup dipanggil berulang kali.
+                -- Spam remote untuk simulasi 'Hold' (Tekan lama)
+                damageRemote:FireServer(target)
             end
         end
-        task.wait(0.1) -- Delay untuk stabilitas
     end
 end)
 
--- Deteksi Drop & Teleport Otomatis
-workspace.Drops.ChildAdded:Connect(function(child)
-    if isActive then
-        -- Tunggu sejenak agar part benar-benar muncul
-        task.wait(0.1)
-        if child:IsA("BasePart") then
-            -- Teleport part ke posisi pemain agar otomatis terambil
-            child.CFrame = player.Character.HumanoidRootPart.CFrame
+-- Auto-Collect Drops (Teleport Item ke Pemain)
+local dropsFolder = workspace:WaitForChild("Drops", 10)
+if dropsFolder then
+    dropsFolder.ChildAdded:Connect(function(item)
+        if isActive and item:IsA("BasePart") then
+            task.wait(0.1) -- Tunggu sebentar agar physics-nya siap
+            item.CFrame = rootPart.CFrame
         end
-    end
-end)
+    end)
+end
 
--- Toggle Button
+-- Handle Klik Button
 button.MouseButton1Click:Connect(function()
     isActive = not isActive
-    button.Text = isActive and "AUTOFARM: ON" or "AUTOFARM: OFF"
-    button.BackgroundColor3 = isActive and BUTTON_ON_COLOR or BUTTON_OFF_COLOR
     
-    if not isActive then currentTarget = nil end
+    if isActive then
+        button.Text = "AUTOFARM: ACTIVE"
+        button.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+    else
+        button.Text = "AUTOFARM: OFF"
+        button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    end
 end)
