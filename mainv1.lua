@@ -1,147 +1,154 @@
 --[[
-    PROJECT: ARCEUS X MINING AUTOMATION
-    ARCHITECT: ROBOX (SENIOR LEVEL DESIGNER & DEVELOPER)
-    OBJECTIVE: DYNAMIC SCANNING, UI SELECTION, AND REMOTE FIRING
+    PROJECT: ARCEUS X MINING SYSTEM (RE-ENGINEERED)
+    ARCHITECT: ROBOX
+    STATUS: BUG FIXED | STABLE
 ]]--
 
-local Library = {} -- Placeholder untuk struktur UI sederhana
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+-- Pastikan Remote Storage tersedia sebelum lanjut
+local RemotePath = ReplicatedStorage:WaitForChild("Remotes", 5):WaitForChild("Chunks", 5):WaitForChild("damageBlock", 5)
+if not RemotePath then warn("ARCHITECT: Remote tidak ditemukan!") return end
 
 local LocalPlayer = Players.LocalPlayer
-local DamageRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Chunks"):WaitForChild("damageBlock")
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
--- Konfigurasi State
-local Settings = {
-    AutoMine = false,
-    SelectedMaterial = nil,
-    TargetFolder = Workspace:WaitForChild("Blocks"),
-    DropFolder = Workspace:WaitForChild("Drops")
+-- State Management
+local State = {
+    Enabled = false,
+    TargetMaterial = nil,
+    IsMining = false
 }
 
--- 1. FUNGSI PEMINDAIAN (SCANNING)
--- Memindai MaterialVariant secara unik agar UI tidak penuh
-local function GetAvailableMaterials()
-    local materials = {}
-    local children = Settings.TargetFolder:GetChildren()
-    
-    for _, block in ipairs(children) do
-        if block:IsA("BasePart") and block.MaterialVariant ~= "" then
-            materials[block.MaterialVariant] = true
+-- UI CONSTRUCTOR (Robust Method)
+local function CreateUI()
+    -- Menggunakan pcall untuk menghindari crash total jika UI gagal dimuat
+    local success, err = pcall(function()
+        local Gui = Instance.new("ScreenGui")
+        -- Gunakan CoreGui jika tersedia, jika tidak jatuh ke PlayerGui
+        Gui.Parent = (game:GetService("CoreGui"):FindFirstChild("RobloxGui") and game:GetService("CoreGui")) or LocalPlayer:WaitForChild("PlayerGui")
+        Gui.Name = "Architect_Pro_Miner"
+        Gui.ResetOnSpawn = false
+
+        local Main = Instance.new("Frame", Gui)
+        Main.Size = UDim2.new(0, 220, 0, 280)
+        Main.Position = UDim2.new(0.5, -110, 0.4, 0)
+        Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+        Main.BorderSizePixel = 0
+        Main.Active = true
+        Main.Draggable = true -- Memudahkan user di mobile
+
+        local Title = Instance.new("TextLabel", Main)
+        Title.Size = UDim2.new(1, 0, 0, 35)
+        Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        Title.Text = "ARCHITECT AUTOMATION"
+        Title.TextColor3 = Color3.new(1, 1, 1)
+        Title.Font = Enum.Font.GothamBold
+        Title.TextSize = 14
+
+        local Toggle = Instance.new("TextButton", Main)
+        Toggle.Name = "ToggleBtn" -- Memberi nama eksplisit agar tidak Nil
+        Toggle.Size = UDim2.new(0.9, 0, 0, 45)
+        Toggle.Position = UDim2.new(0.05, 0, 0.2, 0)
+        Toggle.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+        Toggle.Text = "STATUS: OFF"
+        Toggle.TextColor3 = Color3.new(1, 1, 1)
+        Toggle.Font = Enum.Font.GothamMedium
+
+        local List = Instance.new("ScrollingFrame", Main)
+        List.Size = UDim2.new(0.9, 0, 0, 150)
+        List.Position = UDim2.new(0.05, 0, 0.4, 0)
+        List.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+        List.CanvasSize = UDim2.new(0, 0, 0, 0)
+        List.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        
+        local UIListLayout = Instance.new("UIListLayout", List)
+        UIListLayout.Padding = UDim.new(0, 5)
+
+        -- LOGIKA TOMBOL TOGGLE
+        Toggle.MouseButton1Click:Connect(function()
+            State.Enabled = not State.Enabled
+            Toggle.Text = State.Enabled and "STATUS: ON" or "STATUS: OFF"
+            Toggle.BackgroundColor3 = State.Enabled and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
+        end)
+
+        -- SCANNER & LIST POPULATOR
+        local function PopulateList()
+            local folder = Workspace:FindFirstChild("Blocks")
+            if not folder then return end
+            
+            local foundMaterials = {}
+            for _, block in ipairs(folder:GetChildren()) do
+                if block:IsA("BasePart") and block.MaterialVariant ~= "" then
+                    if not foundMaterials[block.MaterialVariant] then
+                        foundMaterials[block.MaterialVariant] = true
+                        
+                        local MatBtn = Instance.new("TextButton", List)
+                        MatBtn.Size = UDim2.new(1, -10, 0, 30)
+                        MatBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                        MatBtn.Text = block.MaterialVariant
+                        MatBtn.TextColor3 = Color3.new(1, 1, 1)
+                        
+                        MatBtn.MouseButton1Click:Connect(function()
+                            State.TargetMaterial = block.MaterialVariant
+                            print("Targeted: " .. block.MaterialVariant)
+                            -- Visual feedback
+                            for _, v in ipairs(List:GetChildren()) do 
+                                if v:IsA("TextButton") then v.BackgroundColor3 = Color3.fromRGB(50, 50, 50) end 
+                            end
+                            MatBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+                        end)
+                    end
+                end
+            end
         end
-    end
-    return materials
+
+        PopulateList()
+    end)
+    
+    if not success then warn("ARCHITECT UI ERROR: " .. err) end
 end
 
--- 2. LOGIKA PENAMBANGAN (MINING LOGIC)
--- Catatan: Karena Remote tidak menghancurkan instan, kita mensimulasikan hold.
-local function StartMining()
-    task.spawn(function()
-        while Settings.AutoMine do
-            if Settings.SelectedMaterial then
-                for _, block in ipairs(Settings.TargetFolder:GetChildren()) do
-                    if not Settings.AutoMine then break end
-                    
-                    if block:IsA("BasePart") and block.MaterialVariant == Settings.SelectedMaterial then
-                        -- Jarak aman agar tidak terdeteksi anti-cheat (Magnitude Check)
-                        local dist = (LocalPlayer.Character.HumanoidRootPart.Position - block.Position).Magnitude
-                        if dist < 25 then 
-                            -- Fire Remote
-                            DamageRemote:FireServer(block)
-                            
-                            -- Simulasi delay penambangan agar natural
-                            task.wait(0.1) 
-                            
-                            -- Logika Teleport Drop (Hanya jika drop muncul)
-                            -- Menggunakan ChildAdded untuk efisiensi tinggi
+-- LOGIKA MINING & AUTO-COLLECT
+task.spawn(function()
+    while true do
+        if State.Enabled and State.TargetMaterial then
+            local Blocks = Workspace:FindFirstChild("Blocks")
+            if Blocks then
+                for _, block in ipairs(Blocks:GetChildren()) do
+                    if not State.Enabled then break end
+                    if block:IsA("BasePart") and block.MaterialVariant == State.TargetMaterial then
+                        local char = LocalPlayer.Character
+                        if char and char:FindFirstChild("HumanoidRootPart") then
+                            local dist = (char.HumanoidRootPart.Position - block.Position).Magnitude
+                            if dist < 30 then
+                                -- Simulasi "Hold" dengan loop cepat ke remote
+                                RemotePath:FireServer(block)
+                                task.wait(0.05) 
+                            end
                         end
                     end
                 end
             end
-            task.wait(0.5)
         end
-    end)
-end
+        task.wait(0.1)
+    end
+end)
 
--- 3. LOGIKA AUTO-COLLECT DROPS
-Settings.DropFolder.ChildAdded:Connect(function(drop)
-    if Settings.AutoMine then
-        task.wait(0.1) -- Menunggu physics drop stabil
-        if drop:IsA("BasePart") or drop:IsA("Model") then
-            local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                -- Teleport drop ke posisi pemain (lebih aman daripada pemain ke drop)
-                if drop:IsA("Model") then
-                    drop:SetPrimaryPartCFrame(root.CFrame)
-                else
-                    drop.CFrame = root.CFrame
-                end
-            end
+-- AUTO COLLECT DROPS (PRECISION TELEPORT)
+Workspace.Drops.ChildAdded:Connect(function(drop)
+    if State.Enabled then
+        task.wait(0.2) -- Menunggu drop stabil di server
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and drop:IsA("BasePart") then
+            drop.CFrame = hrp.CFrame
+        elseif hrp and drop:IsA("Model") then
+            drop:SetPrimaryPartCFrame(hrp.CFrame)
         end
     end
 end)
 
--- 4. PEMBUATAN UI (MINIMALIST & FUNCTIONAL)
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "Architect_Miner_UI"
-
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 200, 0, 250)
-MainFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.BorderSizePixel = 0
-
-local Title = Instance.new("TextLabel", MainFrame)
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Text = "ARCHITECT MINER"
-Title.TextColor3 = Color3.new(1, 1, 1)
-Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-
-local ToggleBtn = Instance.new("TextButton", MainFrame)
-ToggleBtn.Size = UDim2.new(0.9, 0, 0, 40)
-ToggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
-ToggleBtn.Text = "AUTO-MINE: OFF"
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-
-local Dropdown = Instance.new("ScrollingFrame", MainFrame)
-Dropdown.Size = UDim2.new(0.9, 0, 0, 130)
-Dropdown.Position = UDim2.new(0.05, 0, 0.4, 0)
-Dropdown.CanvasSize = UDim2.new(0, 0, 5, 0)
-Dropdown.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-
--- Handler Toggle
-ToggleBtn.MouseButton1Click:Connect(function()
-    Settings.AutoMine = not Settings.AutoMine
-    ToggleBtn.Text = "AUTO-MINE: " .. (Settings.AutoMine and "ON" or "OFF")
-    ToggleBtn.BackgroundColor3 = Settings.AutoMine and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
-    
-    if Settings.AutoMine then
-        StartMining()
-    end
-end)
-
--- Populating Dropdown dengan MaterialVariant
-local function RefreshList()
-    for _, v in ipairs(Dropdown:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-    
-    local mats = GetAvailableMaterials()
-    local count = 0
-    for matName, _ in pairs(mats) do
-        local btn = Instance.new("TextButton", Dropdown)
-        btn.Size = UDim2.new(1, 0, 0, 25)
-        btn.Position = UDim2.new(0, 0, 0, count * 25)
-        btn.Text = matName
-        btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-        btn.TextColor3 = Color3.new(1, 1, 1)
-        
-        btn.MouseButton1Click:Connect(function()
-            Settings.SelectedMaterial = matName
-            print("Selected: " .. matName)
-        end)
-        count = count + 1
-    end
-end
-
-RefreshList()
+CreateUI()
