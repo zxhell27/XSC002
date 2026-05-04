@@ -1,118 +1,147 @@
 --[[
-    PROFESSIONAL MINING AUTOFARM (Arceus X Optimized)
-    Fitur: Auto-Scan, Auto-Remote, Auto-Collect Drops, & UI Toggle
-]]
+    PROJECT: ARCEUS X MINING AUTOMATION
+    ARCHITECT: ROBOX (SENIOR LEVEL DESIGNER & DEVELOPER)
+    OBJECTIVE: DYNAMIC SCANNING, UI SELECTION, AND REMOTE FIRING
+]]--
 
-local player = game:GetService("Players").LocalPlayer
-local RS = game:GetService("ReplicatedStorage")
+local Library = {} -- Placeholder untuk struktur UI sederhana
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
--- 1. PEMBERSIHAN UI LAMA (Mencegah Duplicate UI saat Re-exec)
-if player.PlayerGui:FindFirstChild("ArceusAutoMining") then
-    player.PlayerGui.ArceusAutoMining:Destroy()
-end
+local LocalPlayer = Players.LocalPlayer
+local DamageRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Chunks"):WaitForChild("damageBlock")
 
--- 2. SETUP UI OTOMATIS
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ArceusAutoMining"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = player:WaitForChild("PlayerGui")
+-- Konfigurasi State
+local Settings = {
+    AutoMine = false,
+    SelectedMaterial = nil,
+    TargetFolder = Workspace:WaitForChild("Blocks"),
+    DropFolder = Workspace:WaitForChild("Drops")
+}
 
-local mainBtn = Instance.new("TextButton")
-mainBtn.Size = UDim2.new(0, 160, 0, 45)
-mainBtn.Position = UDim2.new(0.5, -80, 0.15, 0)
-mainBtn.Text = "MINING: OFF"
-mainBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-mainBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-mainBtn.Font = Enum.Font.GothamBold
-mainBtn.TextSize = 14
-mainBtn.Parent = screenGui
-
--- Membuat sudut membulat agar lebih profesional
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = mainBtn
-
--- 3. KONFIGURASI & VARIABEL
-local isActive = false
-local damageRemote = nil
-
--- Fungsi mencari Remote secara aman
-local function getDamageRemote()
-    local success, res = pcall(function()
-        return RS.Remotes.Chunks.damageBlock
-    end)
-    return success and res or nil
-end
-
--- 4. FUNGSI SCANNING (Teliti & Akurat)
-local function getTarget()
-    local folder = workspace:FindFirstChild("Blocks")
-    if not folder then return nil end
-
-    local char = player.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
-
-    local bestPart = nil
-    local maxDist = math.huge
-
-    for _, v in ipairs(folder:GetChildren()) do
-        -- Validasi Properti MaterialVariant sesuai instruksi
-        local success, mVariant = pcall(function() return v.MaterialVariant end)
-        
-        if success and mVariant ~= "" then
-            local dist = (char.HumanoidRootPart.Position - v.Position).Magnitude
-            if dist < maxDist then
-                maxDist = dist
-                bestPart = v
-            end
+-- 1. FUNGSI PEMINDAIAN (SCANNING)
+-- Memindai MaterialVariant secara unik agar UI tidak penuh
+local function GetAvailableMaterials()
+    local materials = {}
+    local children = Settings.TargetFolder:GetChildren()
+    
+    for _, block in ipairs(children) do
+        if block:IsA("BasePart") and block.MaterialVariant ~= "" then
+            materials[block.MaterialVariant] = true
         end
     end
-    return bestPart
+    return materials
 end
 
--- 5. LOOP UTAMA (Mining)
-task.spawn(function()
-    while task.wait(0.1) do
-        if isActive then
-            damageRemote = damageRemote or getDamageRemote()
-            
-            if damageRemote then
-                local target = getTarget()
-                if target then
-                    -- Simulasi Menghadap Target (Penting untuk beberapa Anticheat)
-                    local root = player.Character.HumanoidRootPart
-                    root.CFrame = CFrame.new(root.Position, Vector3.new(target.Position.X, root.Position.Y, target.Position.Z))
+-- 2. LOGIKA PENAMBANGAN (MINING LOGIC)
+-- Catatan: Karena Remote tidak menghancurkan instan, kita mensimulasikan hold.
+local function StartMining()
+    task.spawn(function()
+        while Settings.AutoMine do
+            if Settings.SelectedMaterial then
+                for _, block in ipairs(Settings.TargetFolder:GetChildren()) do
+                    if not Settings.AutoMine then break end
                     
-                    -- Fire Remote
-                    damageRemote:FireServer(target)
+                    if block:IsA("BasePart") and block.MaterialVariant == Settings.SelectedMaterial then
+                        -- Jarak aman agar tidak terdeteksi anti-cheat (Magnitude Check)
+                        local dist = (LocalPlayer.Character.HumanoidRootPart.Position - block.Position).Magnitude
+                        if dist < 25 then 
+                            -- Fire Remote
+                            DamageRemote:FireServer(block)
+                            
+                            -- Simulasi delay penambangan agar natural
+                            task.wait(0.1) 
+                            
+                            -- Logika Teleport Drop (Hanya jika drop muncul)
+                            -- Menggunakan ChildAdded untuk efisiensi tinggi
+                        end
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+-- 3. LOGIKA AUTO-COLLECT DROPS
+Settings.DropFolder.ChildAdded:Connect(function(drop)
+    if Settings.AutoMine then
+        task.wait(0.1) -- Menunggu physics drop stabil
+        if drop:IsA("BasePart") or drop:IsA("Model") then
+            local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                -- Teleport drop ke posisi pemain (lebih aman daripada pemain ke drop)
+                if drop:IsA("Model") then
+                    drop:SetPrimaryPartCFrame(root.CFrame)
+                else
+                    drop.CFrame = root.CFrame
                 end
             end
         end
     end
 end)
 
--- 6. AUTO-COLLECT DROPS (Teleport Drop ke Karakter)
-local dropsFolder = workspace:WaitForChild("Drops", 5)
-if dropsFolder then
-    dropsFolder.ChildAdded:Connect(function(item)
-        if isActive and item:IsA("BasePart") then
-            task.wait(0.2) -- Jeda agar physics drop stabil
-            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                item.CFrame = player.Character.HumanoidRootPart.CFrame
-            end
-        end
-    end)
-end
+-- 4. PEMBUATAN UI (MINIMALIST & FUNCTIONAL)
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "Architect_Miner_UI"
 
--- 7. INTERAKSI TOMBOL
-mainBtn.MouseButton1Click:Connect(function()
-    isActive = not isActive
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 200, 0, 250)
+MainFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "ARCHITECT MINER"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+
+local ToggleBtn = Instance.new("TextButton", MainFrame)
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 40)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+ToggleBtn.Text = "AUTO-MINE: OFF"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+
+local Dropdown = Instance.new("ScrollingFrame", MainFrame)
+Dropdown.Size = UDim2.new(0.9, 0, 0, 130)
+Dropdown.Position = UDim2.new(0.05, 0, 0.4, 0)
+Dropdown.CanvasSize = UDim2.new(0, 0, 5, 0)
+Dropdown.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+
+-- Handler Toggle
+ToggleBtn.MouseButton1Click:Connect(function()
+    Settings.AutoMine = not Settings.AutoMine
+    ToggleBtn.Text = "AUTO-MINE: " .. (Settings.AutoMine and "ON" or "OFF")
+    ToggleBtn.BackgroundColor3 = Settings.AutoMine and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
     
-    if isActive then
-        mainBtn.Text = "MINING: ACTIVE"
-        mainBtn.BackgroundColor3 = Color3.fromRGB(40, 167, 69)
-    else
-        mainBtn.Text = "MINING: OFF"
-        mainBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    if Settings.AutoMine then
+        StartMining()
     end
 end)
+
+-- Populating Dropdown dengan MaterialVariant
+local function RefreshList()
+    for _, v in ipairs(Dropdown:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    
+    local mats = GetAvailableMaterials()
+    local count = 0
+    for matName, _ in pairs(mats) do
+        local btn = Instance.new("TextButton", Dropdown)
+        btn.Size = UDim2.new(1, 0, 0, 25)
+        btn.Position = UDim2.new(0, 0, 0, count * 25)
+        btn.Text = matName
+        btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        
+        btn.MouseButton1Click:Connect(function()
+            Settings.SelectedMaterial = matName
+            print("Selected: " .. matName)
+        end)
+        count = count + 1
+    end
+end
+
+RefreshList()
