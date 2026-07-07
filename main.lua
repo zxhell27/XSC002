@@ -9,7 +9,6 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 -- Remote Definitions
--- Menggunakan FindFirstChild/WaitForChild dengan aman untuk menghindari error jika path belum ter-load sepenuhnya
 local NetFolder = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
 local ActionRemote = NetFolder:WaitForChild("RE/ActionRemote")
 local SkillRemote = NetFolder:WaitForChild("RE/SkillRemote")
@@ -27,160 +26,138 @@ getgenv().AutoZ = false
 getgenv().AutoX = false
 getgenv().AutoC = false
 
-local DistanceOffset = CFrame.new(0, 8, 0) * CFrame.Angles(math.rad(-90), 0, 0) -- Posisi aman: 8 stud di atas musuh, menghadap ke bawah
+local DistanceOffset = CFrame.new(0, 8, 0) * CFrame.Angles(math.rad(-90), 0, 0) -- 8 stud di atas musuh, menghadap ke bawah
 
--- Utility Functions
+-- ================= NEW DETECTIONS UTILITIES ================= --
+
+-- Fungsi memindai musuh biasa (Mencari di dalam setiap anak dari workspace.Enemies)
 local function GetEnemiesList()
     local enemies = {}
     local added = {}
     if Workspace:FindFirstChild("Enemies") then
-        for _, v in pairs(Workspace.Enemies:GetChildren()) do
-            if v:IsA("Model") and v:FindFirstChild("Humanoid") and not added[v.Name] then
-                table.insert(enemies, v.Name)
-                added[v.Name] = true
+        for _, parentObj in pairs(Workspace.Enemies:GetChildren()) do
+            -- parentObj adalah objek pembungkus (misal model/folder tanpa nama spesifik atau angka)
+            for _, enemyModel in pairs(parentObj:GetChildren()) do
+                if enemyModel:IsA("Model") and enemyModel:FindFirstChild("Humanoid") and not added[enemyModel.Name] then
+                    table.insert(enemies, enemyModel.Name)
+                    added[enemyModel.Name] = true
+                end
             end
         end
     end
     return enemies
 end
 
+-- Fungsi memindai Boss (Mencari di dalam workspace.Boss.BossSummoner)
 local function GetBossList()
     local bosses = {}
     local added = {}
-    if Workspace:FindFirstChild("Boss") then
-        for _, v in pairs(Workspace.Boss:GetChildren()) do
-            if v:IsA("Model") and v:FindFirstChild("Humanoid") and not added[v.Name] then
-                table.insert(bosses, v.Name)
-                added[v.Name] = true
+    if Workspace:FindFirstChild("Boss") and Workspace.Boss:FindFirstChild("BossSummoner") then
+        for _, bossModel in pairs(Workspace.Boss.BossSummoner:GetChildren()) do
+            if bossModel:IsA("Model") and bossModel:FindFirstChild("Humanoid") and not added[bossModel.Name] then
+                table.insert(bosses, bossModel.Name)
+                added[bossModel.Name] = true
             end
         end
     end
     return bosses
 end
 
-local function GetTarget(folderName, targetName)
-    local folder = Workspace:FindFirstChild(folderName)
-    if folder then
-        for _, v in pairs(folder:GetChildren()) do
-            if v.Name == targetName and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
-                return v
+-- Fungsi mendapatkan target Musuh Biasa secara spesifik berdasarkan path baru
+local function GetTargetMob(targetName)
+    if Workspace:FindFirstChild("Enemies") then
+        for _, parentObj in pairs(Workspace.Enemies:GetChildren()) do
+            local enemy = parentObj:FindFirstChild(targetName)
+            if enemy and enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy:FindFirstChild("HumanoidRootPart") then
+                return enemy
             end
         end
     end
     return nil
 end
 
--- Load Rayfield UI
+-- Fungsi mendapatkan target Boss secara spesifik berdasarkan path baru
+local function GetTargetBoss(targetName)
+    if Workspace:FindFirstChild("Boss") and Workspace.Boss:FindFirstChild("BossSummoner") then
+        local boss = Workspace.Boss.BossSummoner:FindFirstChild(targetName)
+        if boss and boss:FindFirstChild("Humanoid") and boss.Humanoid.Health > 0 and boss:FindFirstChild("HumanoidRootPart") then
+            return boss
+        end
+    end
+    return nil
+end
+
+-- ================= RAYFIELD UI SETUP ================= --
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Auto Farm Hub | Arceus X",
-   LoadingTitle = "Loading Script...",
-   LoadingSubtitle = "by Professional Logic",
-   ConfigurationSaving = {
-      Enabled = false,
-   },
-   Discord = {
-      Enabled = false,
-   },
+   Name = "Auto Farm Hub | Path Fixed",
+   LoadingTitle = "Loading Fixed Logic...",
+   LoadingSubtitle = "Arceus X Edition",
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
    KeySystem = false
 })
 
--- ================= TABS ================= --
 local FarmTab = Window:CreateTab("Auto Farm", 4483362458)
 local SkillTab = Window:CreateTab("Auto Skills", 4483362458)
 
--- ================= FARM TAB ================= --
+-- Mob Setup
 local MobDropdown = FarmTab:CreateDropdown({
    Name = "Pilih Musuh Biasa",
    Options = GetEnemiesList(),
    CurrentOption = {""},
    MultipleOptions = false,
    Flag = "MobDrop",
-   Callback = function(Option)
-        getgenv().SelectedMob = Option[1]
-   end,
+   Callback = function(Option) getgenv().SelectedMob = Option[1] end,
 })
 
 FarmTab:CreateButton({
    Name = "Refresh Daftar Musuh",
-   Callback = function()
-        MobDropdown:Refresh(GetEnemiesList())
-   end,
+   Callback = function() MobDropdown:Refresh(GetEnemiesList()) end,
 })
 
 FarmTab:CreateToggle({
    Name = "Auto Farm Mob",
    CurrentValue = false,
    Flag = "ToggleMob",
-   Callback = function(Value)
-        getgenv().AutoFarmMob = Value
-   end,
+   Callback = function(Value) getgenv().AutoFarmMob = Value end,
 })
 
 FarmTab:CreateDivider()
 
+-- Boss Setup
 local BossDropdown = FarmTab:CreateDropdown({
    Name = "Pilih Boss",
    Options = GetBossList(),
    CurrentOption = {""},
    MultipleOptions = false,
    Flag = "BossDrop",
-   Callback = function(Option)
-        getgenv().SelectedBoss = Option[1]
-   end,
+   Callback = function(Option) getgenv().SelectedBoss = Option[1] end,
 })
 
 FarmTab:CreateButton({
    Name = "Refresh Daftar Boss",
-   Callback = function()
-        BossDropdown:Refresh(GetBossList())
-   end,
+   Callback = function() BossDropdown:Refresh(GetBossList()) end,
 })
 
 FarmTab:CreateToggle({
    Name = "Auto Farm Boss",
    CurrentValue = false,
    Flag = "ToggleBoss",
-   Callback = function(Value)
-        getgenv().AutoFarmBoss = Value
-   end,
+   Callback = function(Value) getgenv().AutoFarmBoss = Value end,
 })
 
--- ================= SKILL TAB ================= --
-SkillTab:CreateLabel("Pilih aksi yang ingin di-loop:")
+-- Skills Setup
+SkillTab:CreateLabel("Pilih aksi/skill untuk looping:")
+SkillTab:CreateToggle({ Name = "Auto M1 (Basic)", CurrentValue = false, Callback = function(v) getgenv().AutoM1 = v end })
+SkillTab:CreateToggle({ Name = "Auto Skill Z", CurrentValue = false, Callback = function(v) getgenv().AutoZ = v end })
+SkillTab:CreateToggle({ Name = "Auto Skill X", CurrentValue = false, Callback = function(v) getgenv().AutoX = v end })
+SkillTab:CreateToggle({ Name = "Auto Skill C", CurrentValue = false, Callback = function(v) getgenv().AutoC = v end })
 
-SkillTab:CreateToggle({
-   Name = "Auto M1 (Basic Attack)",
-   CurrentValue = false,
-   Flag = "TogM1",
-   Callback = function(Value) getgenv().AutoM1 = Value end,
-})
+-- ================= CORE TELEPORT & ATTACK LOGIC ================= --
 
-SkillTab:CreateToggle({
-   Name = "Auto Skill Z",
-   CurrentValue = false,
-   Flag = "TogZ",
-   Callback = function(Value) getgenv().AutoZ = Value end,
-})
-
-SkillTab:CreateToggle({
-   Name = "Auto Skill X",
-   CurrentValue = false,
-   Flag = "TogX",
-   Callback = function(Value) getgenv().AutoX = Value end,
-})
-
-SkillTab:CreateToggle({
-   Name = "Auto Skill C",
-   CurrentValue = false,
-   Flag = "TogC",
-   Callback = function(Value) getgenv().AutoC = Value end,
-})
-
--- ================= CORE LOGIC ================= --
-
--- 1. Teleport & CFrame Hold Loop
+-- Loop Teleportasi Posisi Aman (Heartbeat run demi kelancaran bypass fisika)
 RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -189,56 +166,35 @@ RunService.Heartbeat:Connect(function()
     local target = nil
 
     if getgenv().AutoFarmBoss and getgenv().SelectedBoss then
-        target = GetTarget("Boss", getgenv().SelectedBoss)
+        target = GetTargetBoss(getgenv().SelectedBoss)
     elseif getgenv().AutoFarmMob and getgenv().SelectedMob then
-        target = GetTarget("Enemies", getgenv().SelectedMob)
+        target = GetTargetMob(getgenv().SelectedMob)
     end
 
     if target and target:FindFirstChild("HumanoidRootPart") then
-        -- Menahan posisi di atas target agar tidak terkena hit
+        -- Mengunci CFrame di atas kepala musuh persis sesuai hitungan jarak aman
         hrp.CFrame = target.HumanoidRootPart.CFrame * DistanceOffset
-        
-        -- Mencegah karakter jatuh/terpental akibat fisika game
         hrp.Velocity = Vector3.new(0, 0, 0)
         hrp.RotVelocity = Vector3.new(0, 0, 0)
     end
 end)
 
--- 2. Skills & Action Firing Loop
--- Dipisah ke task.spawn agar interval (wait) tidak mengganggu mulusnya teleportasi Heartbeat
+-- Loop Pengiriman Remote Event (Asinkron agar tidak membuat lag pergerakan)
 task.spawn(function()
     while true do
-        task.wait(0.1) -- Jeda aman agar tidak terkena limit server (Kick)
-        
-        -- Hanya menembakkan remote jika salah satu auto farm sedang aktif
+        task.wait(0.1)
         if getgenv().AutoFarmMob or getgenv().AutoFarmBoss then
-            
-            -- Catatan: "Light" bisa diganti secara dinamis jika senjata berubah, 
-            -- untuk saat ini disesuaikan dengan permintaan.
-            
-            if getgenv().AutoM1 then
-                pcall(function() ActionRemote:FireServer("M1", "Light") end)
-            end
-            
-            if getgenv().AutoZ then
-                pcall(function() SkillRemote:FireServer("Light", "Z") end)
-            end
-            
-            if getgenv().AutoX then
-                pcall(function() SkillRemote:FireServer("Light", "X") end)
-            end
-            
-            if getgenv().AutoC then
-                pcall(function() SkillRemote:FireServer("Light", "C") end)
-            end
-            
+            if getgenv().AutoM1 then pcall(function() ActionRemote:FireServer("M1", "Light") end) end
+            if getgenv().AutoZ then pcall(function() SkillRemote:FireServer("Light", "Z") end) end
+            if getgenv().AutoX then pcall(function() SkillRemote:FireServer("Light", "X") end) end
+            if getgenv().AutoC then pcall(function() SkillRemote:FireServer("Light", "C") end) end
         end
     end
 end)
 
 Rayfield:Notify({
-    Title = "Script Siap",
-    Content = "Logika sistem dimuat. Pastikan Anda telah me-refresh dropdown musuh sebelum memulai.",
+    Title = "Sistem Diperbarui",
+    Content = "Hirarki path musuh baru telah dimuat dengan sukses.",
     Duration = 5,
     Image = 4483362458,
 })
