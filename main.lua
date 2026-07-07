@@ -32,7 +32,7 @@ getgenv().BringMobs = false
 getgenv().SelectedMob = nil
 getgenv().SelectedBoss = nil
 
--- PERBAIKAN LOGIKA: Variabel global untuk menyimpan target utama
+-- Variabel global untuk menyimpan target utama
 getgenv().CurrentMainTarget = nil
 
 -- Skill States
@@ -123,7 +123,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Auto Farm Hub | Target Damage Fix",
+   Name = "Auto Farm Hub | Boss M1 Fix",
    LoadingTitle = "Memuat Logika targeting...",
    LoadingSubtitle = "Arceus X Edition",
    ConfigurationSaving = { Enabled = false },
@@ -203,44 +203,34 @@ RunService.Heartbeat:Connect(function()
     local hrp = char.HumanoidRootPart
     local target = nil
     
-    -- Reset target utama sebelum pemindaian baru
     getgenv().CurrentMainTarget = nil
 
-    -- 1. PRIORITAS UTAMA: Cari Boss Terlebih Dahulu (Jika diaktifkan)
+    -- 1. PRIORITAS UTAMA: Cari Boss Terlebih Dahulu
     if getgenv().AutoFarmBoss and getgenv().SelectedBoss then
         target = GetTargetBoss(getgenv().SelectedBoss)
     end
 
-    -- 2. PRIORITAS KEDUA: Jika Boss tidak ada/mati, baru lanjut ke Mob (Jika diaktifkan)
+    -- 2. PRIORITAS KEDUA: Lanjut ke Mob
     if not target and getgenv().AutoFarmMob and getgenv().SelectedMob then
         target = GetTargetMob(getgenv().SelectedMob)
     end
 
     if target and target:FindFirstChild("HumanoidRootPart") then
-        -- Simpan target utama yang berhasil ditemukan
         getgenv().CurrentMainTarget = target
         
-        -- Kunci posisi player di atas target
         hrp.CFrame = target.HumanoidRootPart.CFrame * DistanceOffset
         hrp.Velocity = Vector3.new(0, 0, 0)
         hrp.RotVelocity = Vector3.new(0, 0, 0)
         
-        -- Logika Bring Mobs (Menarik musuh lain)
         if getgenv().BringMobs and getgenv().AutoFarmMob then
             if Workspace:FindFirstChild("Enemies") then
                 for _, parentObj in pairs(Workspace.Enemies:GetChildren()) do
                     for _, enemy in pairs(parentObj:GetChildren()) do
-                        -- Mengecek apakah nama sama, masih hidup, dan BUKAN target utama
                         if enemy.Name == getgenv().SelectedMob and enemy ~= target then
                             if enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy:FindFirstChild("HumanoidRootPart") then
-                                
-                                -- Pindahkan musuh lain persis ke posisi target utama yang sedang diserang
                                 enemy.HumanoidRootPart.CFrame = target.HumanoidRootPart.CFrame
-                                
-                                -- Hilangkan daya pantul/lemparan (Velocity) agar musuh menumpuk dengan rapi
                                 enemy.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
                                 enemy.HumanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
-                                
                             end
                         end
                     end
@@ -250,31 +240,45 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Loop Pengiriman Remote Event (Diperbarui dengan Targeting)
+-- ================= LOOP PENYERANGAN (DIPERBARUI) ================= --
 task.spawn(function()
     while true do
         task.wait(0.1)
         
-        -- Hanya menembakkan remote jika salah satu auto farm sedang aktif DAN target utama ditemukan
         if (getgenv().AutoFarmMob or getgenv().AutoFarmBoss) and getgenv().CurrentMainTarget then
-            
             local currentTarget = getgenv().CurrentMainTarget
             
-            -- Amankan target dalam protected call agar skrip tidak crash jika target mati di tengah jalan
-            pcall(function()
-                if getgenv().AutoM1 then ActionRemote:FireServer("M1", "Light", currentTarget) end
-                if getgenv().AutoZ then SkillRemote:FireServer("Light", "Z", currentTarget) end
-                if getgenv().AutoX then SkillRemote:FireServer("Light", "X", currentTarget) end
-                if getgenv().AutoC then SkillRemote:FireServer("Light", "C", currentTarget) end
-            end)
+            -- PERBAIKAN: Memisahkan pcall dan menambahkan bypass serangan tool/mouse
+            if getgenv().AutoM1 then 
+                -- Tembak remote bawaan
+                pcall(function() ActionRemote:FireServer("M1", "Light", currentTarget) end)
+                
+                -- Backup 1: Paksa ayunan senjata (Paling efektif jika remote mem-blokir target Boss)
+                pcall(function()
+                    local char = LocalPlayer.Character
+                    if char then
+                        local tool = char:FindFirstChildOfClass("Tool")
+                        if tool then
+                            tool:Activate()
+                        end
+                    end
+                end)
+                
+                -- Backup 2: Memicu raw virtual click
+                if mouse1click then pcall(function() mouse1click() end) end
+            end
             
+            -- Skill dieksekusi secara terpisah agar saling tidak mengganggu jika ada error remote
+            if getgenv().AutoZ then pcall(function() SkillRemote:FireServer("Light", "Z", currentTarget) end) end
+            if getgenv().AutoX then pcall(function() SkillRemote:FireServer("Light", "X", currentTarget) end) end
+            if getgenv().AutoC then pcall(function() SkillRemote:FireServer("Light", "C", currentTarget) end) end
         end
     end
 end)
 
 Rayfield:Notify({
-    Title = "Sistem Prioritas Aktif",
-    Content = "Logika prioritas Boss telah diterapkan dengan sukses.",
+    Title = "Auto M1 Fix Diterapkan",
+    Content = "Bypass serangan Boss telah ditambahkan ke sistem M1.",
     Duration = 5,
     Image = 4483362458,
 })
