@@ -5,11 +5,11 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local VirtualInputManager = game:GetService("VirtualInputManager") -- DITAMBAHKAN: Untuk menekan tombol 2
+local VirtualInputManager = game:GetService("VirtualInputManager") 
 
 local LocalPlayer = Players.LocalPlayer
 
--- ================= FITUR BARU: AUTO TEKAN 2 SAAT RESPAWN ================= --
+-- ================= FITUR: AUTO TEKAN 2 SAAT RESPAWN ================= --
 LocalPlayer.CharacterAdded:Connect(function(character)
     task.wait(3) -- Tunggu 3 detik setelah respawn
     -- Menyimulasikan menekan tombol 2 (Equip)
@@ -65,7 +65,6 @@ local function GetBossList()
     local bosses = {}
     local added = {}
     if Workspace:FindFirstChild("Boss") then
-        -- DITAMBAHKAN: Daftar folder boss sesuai permintaan
         local bossFolders = {
             Workspace.Boss:FindFirstChild("BossSummoner"),
             Workspace.Boss:FindFirstChild("ServerTimeBossSpawner"),
@@ -101,7 +100,6 @@ end
 
 local function GetTargetBoss(targetName)
     if Workspace:FindFirstChild("Boss") then
-        -- DITAMBAHKAN: Daftar folder boss untuk target pencarian
         local bossFolders = {
             Workspace.Boss:FindFirstChild("BossSummoner"),
             Workspace.Boss:FindFirstChild("ServerTimeBossSpawner"),
@@ -208,22 +206,26 @@ RunService.Heartbeat:Connect(function()
     -- Reset target utama sebelum pemindaian baru
     getgenv().CurrentMainTarget = nil
 
+    -- 1. PRIORITAS UTAMA: Cari Boss Terlebih Dahulu (Jika diaktifkan)
     if getgenv().AutoFarmBoss and getgenv().SelectedBoss then
         target = GetTargetBoss(getgenv().SelectedBoss)
-    elseif getgenv().AutoFarmMob and getgenv().SelectedMob then
+    end
+
+    -- 2. PRIORITAS KEDUA: Jika Boss tidak ada/mati, baru lanjut ke Mob (Jika diaktifkan)
+    if not target and getgenv().AutoFarmMob and getgenv().SelectedMob then
         target = GetTargetMob(getgenv().SelectedMob)
     end
 
     if target and target:FindFirstChild("HumanoidRootPart") then
-        -- PERBAIKAN LOGIKA: Simpan target utama yang berhasil ditemukan
+        -- Simpan target utama yang berhasil ditemukan
         getgenv().CurrentMainTarget = target
         
-        -- 1. Kunci posisi player di atas target
+        -- Kunci posisi player di atas target
         hrp.CFrame = target.HumanoidRootPart.CFrame * DistanceOffset
         hrp.Velocity = Vector3.new(0, 0, 0)
         hrp.RotVelocity = Vector3.new(0, 0, 0)
         
-        -- 2. Logika Bring Mobs (Menarik musuh lain)
+        -- Logika Bring Mobs (Menarik musuh lain)
         if getgenv().BringMobs and getgenv().AutoFarmMob then
             if Workspace:FindFirstChild("Enemies") then
                 for _, parentObj in pairs(Workspace.Enemies:GetChildren()) do
@@ -253,7 +255,7 @@ task.spawn(function()
     while true do
         task.wait(0.1)
         
-        -- PERBAIKAN LOGIKA: Hanya menembakkan remote jika salah satu auto farm sedang aktif DAN target utama ditemukan
+        -- Hanya menembakkan remote jika salah satu auto farm sedang aktif DAN target utama ditemukan
         if (getgenv().AutoFarmMob or getgenv().AutoFarmBoss) and getgenv().CurrentMainTarget then
             
             local currentTarget = getgenv().CurrentMainTarget
@@ -271,8 +273,8 @@ task.spawn(function()
 end)
 
 Rayfield:Notify({
-    Title = "Targeting Diperbarui",
-    Content = "Logika serangan dengan targeting target utama berhasil dimuat.",
+    Title = "Sistem Prioritas Aktif",
+    Content = "Logika prioritas Boss telah diterapkan dengan sukses.",
     Duration = 5,
     Image = 4483362458,
 })
