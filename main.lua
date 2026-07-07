@@ -17,6 +17,7 @@ local SkillRemote = NetFolder:WaitForChild("RE/SkillRemote")
 local getgenv = getgenv or function() return _G end
 getgenv().AutoFarmMob = false
 getgenv().AutoFarmBoss = false
+getgenv().BringMobs = false -- Variabel baru untuk fitur narik musuh
 getgenv().SelectedMob = nil
 getgenv().SelectedBoss = nil
 
@@ -26,17 +27,15 @@ getgenv().AutoZ = false
 getgenv().AutoX = false
 getgenv().AutoC = false
 
-local DistanceOffset = CFrame.new(0, 8, 0) * CFrame.Angles(math.rad(-90), 0, 0) -- 8 stud di atas musuh, menghadap ke bawah
+local DistanceOffset = CFrame.new(0, 8, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 
--- ================= NEW DETECTIONS UTILITIES ================= --
+-- ================= DETECTIONS UTILITIES ================= --
 
--- Fungsi memindai musuh biasa (Mencari di dalam setiap anak dari workspace.Enemies)
 local function GetEnemiesList()
     local enemies = {}
     local added = {}
     if Workspace:FindFirstChild("Enemies") then
         for _, parentObj in pairs(Workspace.Enemies:GetChildren()) do
-            -- parentObj adalah objek pembungkus (misal model/folder tanpa nama spesifik atau angka)
             for _, enemyModel in pairs(parentObj:GetChildren()) do
                 if enemyModel:IsA("Model") and enemyModel:FindFirstChild("Humanoid") and not added[enemyModel.Name] then
                     table.insert(enemies, enemyModel.Name)
@@ -48,7 +47,6 @@ local function GetEnemiesList()
     return enemies
 end
 
--- Fungsi memindai Boss (Mencari di dalam workspace.Boss.BossSummoner)
 local function GetBossList()
     local bosses = {}
     local added = {}
@@ -63,7 +61,6 @@ local function GetBossList()
     return bosses
 end
 
--- Fungsi mendapatkan target Musuh Biasa secara spesifik berdasarkan path baru
 local function GetTargetMob(targetName)
     if Workspace:FindFirstChild("Enemies") then
         for _, parentObj in pairs(Workspace.Enemies:GetChildren()) do
@@ -76,7 +73,6 @@ local function GetTargetMob(targetName)
     return nil
 end
 
--- Fungsi mendapatkan target Boss secara spesifik berdasarkan path baru
 local function GetTargetBoss(targetName)
     if Workspace:FindFirstChild("Boss") and Workspace.Boss:FindFirstChild("BossSummoner") then
         local boss = Workspace.Boss.BossSummoner:FindFirstChild(targetName)
@@ -91,8 +87,8 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Auto Farm Hub | Path Fixed",
-   LoadingTitle = "Loading Fixed Logic...",
+   Name = "Auto Farm Hub | Magnet Edition",
+   LoadingTitle = "Memuat Fitur Magnet...",
    LoadingSubtitle = "Arceus X Edition",
    ConfigurationSaving = { Enabled = false },
    Discord = { Enabled = false },
@@ -122,6 +118,14 @@ FarmTab:CreateToggle({
    CurrentValue = false,
    Flag = "ToggleMob",
    Callback = function(Value) getgenv().AutoFarmMob = Value end,
+})
+
+-- FITUR BARU: BRING MOBS
+FarmTab:CreateToggle({
+   Name = "Kumpulkan Musuh (Bring Mobs)",
+   CurrentValue = false,
+   Flag = "ToggleBring",
+   Callback = function(Value) getgenv().BringMobs = Value end,
 })
 
 FarmTab:CreateDivider()
@@ -155,9 +159,8 @@ SkillTab:CreateToggle({ Name = "Auto Skill Z", CurrentValue = false, Callback = 
 SkillTab:CreateToggle({ Name = "Auto Skill X", CurrentValue = false, Callback = function(v) getgenv().AutoX = v end })
 SkillTab:CreateToggle({ Name = "Auto Skill C", CurrentValue = false, Callback = function(v) getgenv().AutoC = v end })
 
--- ================= CORE TELEPORT & ATTACK LOGIC ================= --
+-- ================= CORE TELEPORT, MAGNET & ATTACK LOGIC ================= --
 
--- Loop Teleportasi Posisi Aman (Heartbeat run demi kelancaran bypass fisika)
 RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -172,14 +175,37 @@ RunService.Heartbeat:Connect(function()
     end
 
     if target and target:FindFirstChild("HumanoidRootPart") then
-        -- Mengunci CFrame di atas kepala musuh persis sesuai hitungan jarak aman
+        -- 1. Kunci posisi player di atas target
         hrp.CFrame = target.HumanoidRootPart.CFrame * DistanceOffset
         hrp.Velocity = Vector3.new(0, 0, 0)
         hrp.RotVelocity = Vector3.new(0, 0, 0)
+        
+        -- 2. Logika Bring Mobs (Menarik musuh lain)
+        if getgenv().BringMobs and getgenv().AutoFarmMob then
+            if Workspace:FindFirstChild("Enemies") then
+                for _, parentObj in pairs(Workspace.Enemies:GetChildren()) do
+                    for _, enemy in pairs(parentObj:GetChildren()) do
+                        -- Mengecek apakah nama sama, masih hidup, dan BUKAN target utama
+                        if enemy.Name == getgenv().SelectedMob and enemy ~= target then
+                            if enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy:FindFirstChild("HumanoidRootPart") then
+                                
+                                -- Pindahkan musuh lain persis ke posisi target utama yang sedang diserang
+                                enemy.HumanoidRootPart.CFrame = target.HumanoidRootPart.CFrame
+                                
+                                -- Hilangkan daya pantul/lemparan (Velocity) agar musuh menumpuk dengan rapi
+                                enemy.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+                                enemy.HumanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
+                                
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
 end)
 
--- Loop Pengiriman Remote Event (Asinkron agar tidak membuat lag pergerakan)
+-- Loop Pengiriman Remote Event
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -193,8 +219,8 @@ task.spawn(function()
 end)
 
 Rayfield:Notify({
-    Title = "Sistem Diperbarui",
-    Content = "Hirarki path musuh baru telah dimuat dengan sukses.",
+    Title = "Bring Mobs Aktif",
+    Content = "Tambahan fitur 'Kumpulkan Musuh' berhasil dimuat.",
     Duration = 5,
     Image = 4483362458,
 })
