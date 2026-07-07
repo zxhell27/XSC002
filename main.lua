@@ -17,9 +17,12 @@ local SkillRemote = NetFolder:WaitForChild("RE/SkillRemote")
 local getgenv = getgenv or function() return _G end
 getgenv().AutoFarmMob = false
 getgenv().AutoFarmBoss = false
-getgenv().BringMobs = false -- Variabel baru untuk fitur narik musuh
+getgenv().BringMobs = false
 getgenv().SelectedMob = nil
 getgenv().SelectedBoss = nil
+
+-- PERBAIKAN LOGIKA: Variabel global untuk menyimpan target utama
+getgenv().CurrentMainTarget = nil
 
 -- Skill States
 getgenv().AutoM1 = false
@@ -87,8 +90,8 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Auto Farm Hub | Magnet Edition",
-   LoadingTitle = "Memuat Fitur Magnet...",
+   Name = "Auto Farm Hub | Target Damage Fix",
+   LoadingTitle = "Memuat Logika targeting...",
    LoadingSubtitle = "Arceus X Edition",
    ConfigurationSaving = { Enabled = false },
    Discord = { Enabled = false },
@@ -120,7 +123,6 @@ FarmTab:CreateToggle({
    Callback = function(Value) getgenv().AutoFarmMob = Value end,
 })
 
--- FITUR BARU: BRING MOBS
 FarmTab:CreateToggle({
    Name = "Kumpulkan Musuh (Bring Mobs)",
    CurrentValue = false,
@@ -167,6 +169,9 @@ RunService.Heartbeat:Connect(function()
     
     local hrp = char.HumanoidRootPart
     local target = nil
+    
+    -- Reset target utama sebelum pemindaian baru
+    getgenv().CurrentMainTarget = nil
 
     if getgenv().AutoFarmBoss and getgenv().SelectedBoss then
         target = GetTargetBoss(getgenv().SelectedBoss)
@@ -175,6 +180,9 @@ RunService.Heartbeat:Connect(function()
     end
 
     if target and target:FindFirstChild("HumanoidRootPart") then
+        -- PERBAIKAN LOGIKA: Simpan target utama yang berhasil ditemukan
+        getgenv().CurrentMainTarget = target
+        
         -- 1. Kunci posisi player di atas target
         hrp.CFrame = target.HumanoidRootPart.CFrame * DistanceOffset
         hrp.Velocity = Vector3.new(0, 0, 0)
@@ -205,22 +213,31 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Loop Pengiriman Remote Event
+-- Loop Pengiriman Remote Event (Diperbarui dengan Targeting)
 task.spawn(function()
     while true do
         task.wait(0.1)
-        if getgenv().AutoFarmMob or getgenv().AutoFarmBoss then
-            if getgenv().AutoM1 then pcall(function() ActionRemote:FireServer("M1", "Light") end) end
-            if getgenv().AutoZ then pcall(function() SkillRemote:FireServer("Light", "Z") end) end
-            if getgenv().AutoX then pcall(function() SkillRemote:FireServer("Light", "X") end) end
-            if getgenv().AutoC then pcall(function() SkillRemote:FireServer("Light", "C") end) end
+        
+        -- PERBAIKAN LOGIKA: Hanya menembakkan remote jika salah satu auto farm sedang aktif DAN target utama ditemukan
+        if (getgenv().AutoFarmMob or getgenv().AutoFarmBoss) and getgenv().CurrentMainTarget then
+            
+            local currentTarget = getgenv().CurrentMainTarget
+            
+            -- Amankan target dalam protected call agar skrip tidak crash jika target mati di tengah jalan
+            pcall(function()
+                if getgenv().AutoM1 then ActionRemote:FireServer("M1", "Light", currentTarget) end
+                if getgenv().AutoZ then SkillRemote:FireServer("Light", "Z", currentTarget) end
+                if getgenv().AutoX then SkillRemote:FireServer("Light", "X", currentTarget) end
+                if getgenv().AutoC then SkillRemote:FireServer("Light", "C", currentTarget) end
+            end)
+            
         end
     end
 end)
 
 Rayfield:Notify({
-    Title = "Bring Mobs Aktif",
-    Content = "Tambahan fitur 'Kumpulkan Musuh' berhasil dimuat.",
+    Title = "Targeting Diperbarui",
+    Content = "Logika serangan dengan targeting target utama berhasil dimuat.",
     Duration = 5,
     Image = 4483362458,
 })
