@@ -5,8 +5,19 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager") -- DITAMBAHKAN: Untuk menekan tombol 2
 
 local LocalPlayer = Players.LocalPlayer
+
+-- ================= FITUR BARU: AUTO TEKAN 2 SAAT RESPAWN ================= --
+LocalPlayer.CharacterAdded:Connect(function(character)
+    task.wait(3) -- Tunggu 3 detik setelah respawn
+    -- Menyimulasikan menekan tombol 2 (Equip)
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
+end)
+-- ======================================================================= --
 
 -- Remote Definitions
 local NetFolder = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
@@ -53,11 +64,23 @@ end
 local function GetBossList()
     local bosses = {}
     local added = {}
-    if Workspace:FindFirstChild("Boss") and Workspace.Boss:FindFirstChild("BossSummoner") then
-        for _, bossModel in pairs(Workspace.Boss.BossSummoner:GetChildren()) do
-            if bossModel:IsA("Model") and bossModel:FindFirstChild("Humanoid") and not added[bossModel.Name] then
-                table.insert(bosses, bossModel.Name)
-                added[bossModel.Name] = true
+    if Workspace:FindFirstChild("Boss") then
+        -- DITAMBAHKAN: Daftar folder boss sesuai permintaan
+        local bossFolders = {
+            Workspace.Boss:FindFirstChild("BossSummoner"),
+            Workspace.Boss:FindFirstChild("ServerTimeBossSpawner"),
+            Workspace.Boss:FindFirstChild("JJKBossSummoner"),
+            Workspace.Boss:FindFirstChild("ShinjukuSummoner")
+        }
+        
+        for _, folder in pairs(bossFolders) do
+            if folder then
+                for _, bossModel in pairs(folder:GetChildren()) do
+                    if bossModel:IsA("Model") and bossModel:FindFirstChild("Humanoid") and not added[bossModel.Name] then
+                        table.insert(bosses, bossModel.Name)
+                        added[bossModel.Name] = true
+                    end
+                end
             end
         end
     end
@@ -77,10 +100,22 @@ local function GetTargetMob(targetName)
 end
 
 local function GetTargetBoss(targetName)
-    if Workspace:FindFirstChild("Boss") and Workspace.Boss:FindFirstChild("BossSummoner") then
-        local boss = Workspace.Boss.BossSummoner:FindFirstChild(targetName)
-        if boss and boss:FindFirstChild("Humanoid") and boss.Humanoid.Health > 0 and boss:FindFirstChild("HumanoidRootPart") then
-            return boss
+    if Workspace:FindFirstChild("Boss") then
+        -- DITAMBAHKAN: Daftar folder boss untuk target pencarian
+        local bossFolders = {
+            Workspace.Boss:FindFirstChild("BossSummoner"),
+            Workspace.Boss:FindFirstChild("ServerTimeBossSpawner"),
+            Workspace.Boss:FindFirstChild("JJKBossSummoner"),
+            Workspace.Boss:FindFirstChild("ShinjukuSummoner")
+        }
+
+        for _, folder in pairs(bossFolders) do
+            if folder then
+                local boss = folder:FindFirstChild(targetName)
+                if boss and boss:FindFirstChild("Humanoid") and boss.Humanoid.Health > 0 and boss:FindFirstChild("HumanoidRootPart") then
+                    return boss
+                end
+            end
         end
     end
     return nil
