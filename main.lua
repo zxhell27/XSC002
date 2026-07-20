@@ -1,87 +1,78 @@
 -- Memuat Rayfield UI Library
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Membuat Window UI
 local Window = Rayfield:CreateWindow({
-   Name = "Auto Upgrade & Prestige",
-   LoadingTitle = "Memuat Script...",
-   LoadingSubtitle = "Arceus X / Executor",
-   ConfigurationSaving = {
-      Enabled = false,
-   },
-   Discord = {
-      Enabled = false,
-   },
+   Name = "⚡ God Speed Farm",
+   LoadingTitle = "Memuat Optimasi...",
+   LoadingSubtitle = "No Lag Edition",
+   ConfigurationSaving = { Enabled = false },
    KeySystem = false,
 })
 
--- Membuat Tab Main
 local Tab = Window:CreateTab("Auto Farm", 4483362458) 
 
--- Variabel kontrol untuk loop
+-- Variabel Kontrol
 getgenv().autoFarmEnabled = false
 
--- Referensi ke Remote Event (ditaruh di luar loop agar lebih optimal)
-local remoteEvent = game:GetService("ReplicatedStorage"):WaitForChild("ReplicaRemoteEvents"):WaitForChild("Replica_ReplicaSignal")
+-- ==========================================
+-- ⚙️ TAHAP OPTIMASI MEMORI & SPEED
+-- ==========================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
--- Fungsi utama untuk otomatisasi
-local function startAutoFarm()
+-- Referensi Event
+local remoteEvent = ReplicatedStorage:WaitForChild("ReplicaRemoteEvents"):WaitForChild("Replica_ReplicaSignal")
+
+-- 1. Caching fungsi FireServer secara lokal (jauh lebih cepat dari pemanggilan normal)
+local fireServer = remoteEvent.FireServer 
+
+-- 2. Pre-generate Array Argumen (Mencegah lag akibat pembuatan tabel berulang di dalam loop)
+local upgradeArgsList = {}
+for i = 1, 43 do
+    upgradeArgsList[i] = {2, "RequestUpgrade", "ground_upg" .. i, "max"}
+end
+
+local prestigeArgs = {2, "RequestPrestige", "Awakening"}
+
+-- Caching Heartbeat untuk jeda waktu per frame
+local heartbeat = RunService.Heartbeat 
+-- ==========================================
+
+local function startGodSpeedFarm()
     task.spawn(function()
         while getgenv().autoFarmEnabled do
-            -- 1. Loop Upgrade dari ground_upg1 sampai ground_upg43
+            
+            -- Tembakkan request 1-43 SEKETIKA tanpa jeda di antaranya
             for i = 1, 43 do
-                -- Cek jika toggle dimatikan di tengah-tengah proses
-                if not getgenv().autoFarmEnabled then break end 
-                
-                local upgradeArgs = {
-                    2,
-                    "RequestUpgrade",
-                    "ground_upg" .. tostring(i),
-                    "max"
-                }
-                
-                -- Eksekusi RemoteEvent Upgrade
-                remoteEvent:FireServer(unpack(upgradeArgs))
-                
-                -- Jeda sangat singkat untuk mencegah crash/kick karena spam remote
-                task.wait(0.05) 
+                fireServer(remoteEvent, unpack(upgradeArgsList[i]))
             end
             
-            -- Cek ulang sebelum melakukan prestige
-            if not getgenv().autoFarmEnabled then break end
-
-            -- 2. Eksekusi Prestige / Awakening setelah mencapai 43
-            local prestigeArgs = {
-                2,
-                "RequestPrestige",
-                "Awakening"
-            }
-            remoteEvent:FireServer(unpack(prestigeArgs))
+            -- Langsung tembakkan Prestige
+            fireServer(remoteEvent, unpack(prestigeArgs))
             
-            -- Jeda 1 detik setelah prestige memberi waktu server memproses sebelum reset loop
-            task.wait(1) 
+            -- Jeda secepat kilat (1 Frame Server / ~0.016 detik)
+            -- Ini mencegah Client Crash dan Network Lag tanpa mengurangi kecepatan
+            heartbeat:Wait() 
         end
     end)
 end
 
--- Membuat Toggle On/Off di dalam UI
+-- UI Toggle
 Tab:CreateToggle({
-   Name = "Auto Upgrade 1-43 & Awakening",
+   Name = "⚡ Auto Farm (Max Speed)",
    CurrentValue = false,
-   Flag = "AutoFarmToggle",
+   Flag = "GodSpeedToggle",
    Callback = function(Value)
        getgenv().autoFarmEnabled = Value
        if Value then
-           -- Jika On, jalankan fungsi
-           startAutoFarm()
+           startGodSpeedFarm()
        end
    end,
 })
 
--- Notifikasi bahwa script berhasil dimuat
 Rayfield:Notify({
-   Title = "Script Ready!",
-   Content = "Toggle auto farm di menu untuk memulai.",
-   Duration = 5,
+   Title = "Optimasi Berhasil",
+   Content = "Skrip berjalan di kecepatan penuh tanpa membebani memori.",
+   Duration = 3,
    Image = 4483362458,
 })
